@@ -1,7 +1,7 @@
 # learn-aws-patch-manager
 how to automate patching in windows and rhel with internet
 
-Absolutely, you can use Terraform to provision and manage the AWS resources for the automated patching setup, including the email notification for failures. Below, I’ll provide a Terraform configuration that implements the solution outlined earlier: AWS Systems Manager (SSM) Patch Manager for Windows and RHEL critical patching, a weekly Maintenance Window, and email notifications via SNS and CloudWatch Events/EventBridge.
+AWS Systems Manager (SSM) Patch Manager for Windows and RHEL critical patching, a weekly Maintenance Window, and email notifications via SNS and CloudWatch Events/EventBridge.
 
 ### Terraform Configuration Overview
 1. **SNS Topic and Subscription**: For email notifications.
