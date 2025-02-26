@@ -228,3 +228,6 @@ output "sns_topic_arn" {
 - **More Granular Failure Details**: Enhance the CloudWatch Event `input_template` or integrate with CloudWatch Logs as needed.
 
 This Terraform setup fully automates your patching and notification requirements. Let me know if you’d like to tweak any part further!
+
+### Outstanding
+https://chat.deepseek.com/a/chat/s/6dc8da1f-9772-495a-b3f9-2b792086279d
