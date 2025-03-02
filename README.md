@@ -1,6 +1,8 @@
 # learn-aws-patch-manager
 how to automate patching in windows and rhel with internet
 
+Resource - https://aws.amazon.com/blogs/mt/patching-your-windows-ec2-instances-using-aws-systems-manager-patch-manager/
+
 AWS Systems Manager (SSM) Patch Manager for Windows and RHEL critical patching, a weekly Maintenance Window, and email notifications via SNS and CloudWatch Events/EventBridge.
 
 ### Terraform Configuration Overview
