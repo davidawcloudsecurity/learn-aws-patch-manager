@@ -25,3 +25,55 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 **Next Step**: Attach this role to your existing EC2 instances (manually via AWS Console/CLI or via Terraform if managed).  
 
 Let me know when you're ready for **Step 2** (SSM Patch Management setup). Keep it minimal?
+
+**Step 2: Configure SSM Patch Management**  
+Set up **Patch Baselines** and **Maintenance Windows** to automate patching for Windows and RHEL instances.  
+
+### Terraform Snippet (Patch Baseline + Maintenance Window):  
+```hcl
+# Define a maintenance window for patching
+resource "aws_ssm_maintenance_window" "patch_window" {
+  name         = "Monthly-Patch-Window"
+  schedule     = "cron(0 0 18 ? * SAT *)"  # Example: 6pm UTC every Saturday
+  duration     = 3   # Hours
+  cutoff       = 1   # Stop new tasks 1 hour before end
+}
+
+# Define patch baseline for Windows
+resource "aws_ssm_patch_baseline" "windows_baseline" {
+  name             = "Windows-Critical-Updates"
+  operating_system = "WINDOWS"
+  approval_rule {
+    approve_after_days = 0
+    patch_filter {
+      key    = "CLASSIFICATION"
+      values = ["CriticalUpdates", "SecurityUpdates"]
+    }
+  }
+}
+
+# Define patch baseline for RHEL
+resource "aws_ssm_patch_baseline" "rhel_baseline" {
+  name             = "RHEL-Security-Updates"
+  operating_system = "REDHAT_ENTERPRISE_LINUX"
+  approval_rule {
+    approve_after_days = 0
+    patch_filter {
+      key    = "CLASSIFICATION"
+      values = ["Security", "Bugfix"]
+    }
+  }
+}
+
+# Assign instances to patch groups (via tags)
+# Tag your existing EC2 instances with:
+# - Key: "PatchGroup"
+# - Value: "Windows-Prod" or "RHEL-Prod" (match the baseline)
+```
+
+**Next Action**:  
+1. **Tag your existing EC2 instances** with `PatchGroup` to associate them with baselines.  
+2. Use AWS Default patching templates or customize further (e.g., reboot settings, patch exceptions).  
+
+Proceed to **Step 3** (Automate patch deployment via SSM Associations)?  
+*(Still keeping it concise?)*
