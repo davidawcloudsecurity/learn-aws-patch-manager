@@ -77,3 +77,54 @@ resource "aws_ssm_patch_baseline" "rhel_baseline" {
 
 Proceed to **Step 3** (Automate patch deployment via SSM Associations)?  
 *(Still keeping it concise?)*
+
+**Step 3: Automate Patch Deployment with SSM Associations**  
+Create **SSM Associations** to trigger patch installations during maintenance windows.  
+
+### Terraform Snippet (SSM Association):  
+```hcl
+# For Windows instances
+resource "aws_ssm_association" "windows_patch" {
+  name = "AWS-RunPatchBaseline"  # AWS predefined document
+
+  targets {
+    key    = "tag:PatchGroup"
+    values = ["Windows-Prod"]  # Matches EC2 instance tag from Step 2
+  }
+
+  parameters = {
+    Operation                        = "Install"
+    RebootOption                     = "RebootIfNeeded"  # Or "NoReboot"
+    BaselineOverride                 = aws_ssm_patch_baseline.windows_baseline.arn
+  }
+
+  schedule_expression = aws_ssm_maintenance_window.patch_window.schedule
+}
+
+# For RHEL instances
+resource "aws_ssm_association" "rhel_patch" {
+  name = "AWS-RunPatchBaseline"
+
+  targets {
+    key    = "tag:PatchGroup"
+    values = ["RHEL-Prod"]
+  }
+
+  parameters = {
+    Operation        = "Install"
+    RebootOption     = "RebootIfNeeded"  # Recommended for Linux
+    BaselineOverride = aws_ssm_patch_baseline.rhel_baseline.arn
+  }
+
+  schedule_expression = aws_ssm_maintenance_window.patch_window.schedule
+}
+```
+
+**Key Actions After Deployment**:  
+1. **Monitor compliance** via AWS SSM → **Patch Manager**.  
+2. Adjust parameters (e.g., `RebootOption`) based on your environment’s tolerance.  
+
+**Next Optional Step**:  
+Set up **SSM State Manager** for ongoing configuration compliance (e.g., enforcing specific OS settings).  
+
+Need this, or done for now?
