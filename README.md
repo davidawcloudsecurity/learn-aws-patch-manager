@@ -1,4 +1,17 @@
 # learn-aws-patch-manager
+
+### Monitor Windows Update Installation Logs
+```
+Get-WindowsUpdateLog
+```
+### Show what is installed
+```
+Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5
+```
+### Check for Pending or Missing Updates
+```
+(New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
+```
 how to automate patching in windows and rhel with internet
 
 Resource - https://aws.amazon.com/blogs/mt/patching-your-windows-ec2-instances-using-aws-systems-manager-patch-manager/
