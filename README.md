@@ -12,7 +12,41 @@ Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5
 ```
 (New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
 ```
-how to automate patching in windows and rhel with internet
+
+To install an `.msu` update package using **wusa** (Windows Update Standalone Installer), follow these steps:
+
+1. **Run the wusa Command**  
+   Use the following syntax:
+   ```
+   wusa .msu [options]
+   ```
+   For example, to install an update silently and prevent automatic restart:
+   ```
+   wusa C:\Updates\Windows10-KB123456-x64.msu /quiet /norestart
+   ```
+   - Replace `C:\Updates\Windows10-KB123456-x64.msu` with the full path and filename of your `.msu` file.
+   - `/quiet` runs the installer without user interaction.
+   - `/norestart` prevents the system from restarting automatically after installation[2][3][5].
+
+2. **Other Useful Options**
+   - `/forcerestart` - Forces an immediate restart after installation.
+   - `/warnrestart:` - Warns before restarting.
+   - `/logfile:` - Saves installation logs to a specified file[5].
+
+**Example Commands:**
+- Install update interactively:
+  ```
+  wusa C:\Updates\Windows10-KB123456-x64.msu
+  ```
+- Install silently, no restart:
+  ```
+  wusa C:\Updates\Windows10-KB123456-x64.msu /quiet /norestart
+  ```
+- Install and log output:
+  ```
+  wusa C:\Updates\Windows10-KB123456-x64.msu /quiet /logfile:C:\update_log.txt
+  ```
+### how to automate patching in windows and rhel with internet
 
 Resource - https://aws.amazon.com/blogs/mt/patching-your-windows-ec2-instances-using-aws-systems-manager-patch-manager/
 
