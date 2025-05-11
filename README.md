@@ -8,6 +8,9 @@ Get-WindowsUpdateLog
 ```
 Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5
 ```
+```
+wmic qfe list
+```
 ### Check for Pending or Missing Updates
 ```
 (New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
