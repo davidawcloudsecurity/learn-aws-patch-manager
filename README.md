@@ -1,5 +1,7 @@
 # learn-aws-patch-manager
-
+```
+wget -O custom_name.zip http://example.com/file.zip
+```
 ### Monitor Windows Update Installation Logs
 ```
 Get-WindowsUpdateLog
