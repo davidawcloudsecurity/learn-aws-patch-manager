@@ -138,7 +138,7 @@ Get-WinEvent -LogName Setup | Where-Object {
 - This will show recent uninstall failures for KB5055519.
 
 ---
-
+https://medium.com/@AhmedZia01/analyzing-windows-event-logs-with-powershell-get-winevent-b08163e78221
 ## 4. **Key Notes**
 
 - **WUSA /quiet uninstall failures are common on newer Windows versions** (Windows 10/11, Server 2016/2019) and are logged as Event ID 8 in the Setup log[6][10].
