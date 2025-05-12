@@ -51,6 +51,52 @@ To install an `.msu` update package using **wusa** (Windows Update Standalone In
   ```
   wusa C:\Updates\Windows10-KB123456-x64.msu /quiet /logfile:C:\update_log.txt
   ```
+  To discover what is available for `Get-WinEvent`, you can list all event logs and providers on your system using its built-in parameters. Here’s how:
+
+---
+
+## List All Event Logs
+
+To see all the logs you can query with `Get-WinEvent`, use:
+
+```powershell
+Get-WinEvent -ListLog *
+```
+- This command lists every event log available on your system, including classic logs (like `System`, `Application`) and newer, application-specific or operational logs[1][3][5].
+
+---
+
+## List All Event Providers
+
+To see all providers (sources of events), use:
+
+```powershell
+Get-WinEvent -ListProvider *
+```
+- This lists all event providers, which are sources that write events to the logs. Providers often correspond to Windows components, drivers, or applications[1][3][5].
+
+---
+
+## List Events for a Specific Provider
+
+To see what events a provider can generate (including Event IDs and descriptions):
+
+```powershell
+(Get-WinEvent -ListProvider "Microsoft-Windows-GroupPolicy").Events | Format-Table ID, Description -AutoSize
+```
+- Replace `"Microsoft-Windows-GroupPolicy"` with any provider name you found from the previous step[3].
+
+---
+
+## Summary Table
+
+| Command                                 | Purpose                                 |
+|------------------------------------------|-----------------------------------------|
+| `Get-WinEvent -ListLog *`                | List all available event logs           |
+| `Get-WinEvent -ListProvider *`           | List all event providers                |
+| `(Get-WinEvent -ListProvider "Name").Events` | List event IDs/descriptions for provider |
+
+---
 ### how to automate patching in windows and rhel with internet
 
 Resource - https://aws.amazon.com/blogs/mt/patching-your-windows-ec2-instances-using-aws-systems-manager-patch-manager/
