@@ -97,6 +97,75 @@ To see what events a provider can generate (including Event IDs and descriptions
 | `(Get-WinEvent -ListProvider "Name").Events` | List event IDs/descriptions for provider |
 
 ---
+When you run `wusa /uninstall /kb:5055519 /quiet` via SSM (or any remote PowerShell), **errors and status will not display in your console due to the `/quiet` switch**. To determine if the uninstallation failed or succeeded, you must check the appropriate Windows event logs.
+
+---
+
+## 1. **Where to Check for WUSA Errors**
+
+### **A. Setup Event Log**
+- **Log Location:** `Event Viewer > Windows Logs > Setup`
+- **Relevant Event IDs:**  
+  - **Event ID 8:** Indicates a failure when using WUSA with `/quiet` or `/norestart` (especially on newer Windows versions; see[6][10]).
+  - **Other IDs:** Success or additional error details may also be logged here.
+
+### **B. Application Event Log**
+- **Log Location:** `Event Viewer > Windows Logs > Application`
+- **Source:** `MsiInstaller` (for MSI-based updates, less common for Windows Updates)
+
+---
+
+## 2. **What to Look For**
+
+- **Event ID 8 in Setup Log:**  
+  This specifically signals that a WUSA uninstall attempt failed when run in quiet mode (no user interaction)[6][10].
+- **Error Messages:**  
+  The event details will include the KB number, the command line used, and an error code (e.g., `0x800f0905`, `2147549183`, etc.)[4][8].
+- **Success:**  
+  If the uninstall is successful, there may be a corresponding success event, but failures are more reliably logged.
+
+---
+
+## 3. **How to Check via PowerShell**
+
+You can query the Setup log for recent WUSA uninstall errors:
+
+```powershell
+Get-WinEvent -LogName Setup | Where-Object {
+    $_.Id -eq 8 -and $_.Message -match "5055519"
+} | Select-Object TimeCreated, Message | Sort-Object TimeCreated -Descending
+```
+- This will show recent uninstall failures for KB5055519.
+
+---
+
+## 4. **Key Notes**
+
+- **WUSA /quiet uninstall failures are common on newer Windows versions** (Windows 10/11, Server 2016/2019) and are logged as Event ID 8 in the Setup log[6][10].
+- **You will not see errors in your SSM/PowerShell output** due to the `/quiet` switch.
+- **Always check the Setup event log** after running silent uninstall commands with WUSA.
+
+---
+
+### **Summary Table**
+
+| Event Log                | Event ID | What it Means                        | Where to Find      |
+|--------------------------|----------|--------------------------------------|--------------------|
+| Setup                    | 8        | WUSA uninstall failed (esp. /quiet)  | Windows Logs\Setup |
+| Setup/Application        | varies   | Success or other error details       | Windows Logs\Setup or Application |
+
+---
+
+**References:**  
+- [Microsoft: WUSA event log location][1]  
+- [StackOverflow: WUSA /quiet uninstall fails, Event ID 8][6][10]  
+- [NinjaOne: Reading Windows Update logs][7]
+
+---
+
+**In summary:**  
+After running `wusa /uninstall /kb:5055519 /quiet`, check the **Setup event log** for **Event ID 8** and related entries to determine if the uninstall succeeded or failed. Errors and details will be logged there, as silent mode suppresses console output.
+
 ### how to automate patching in windows and rhel with internet
 
 Resource - https://aws.amazon.com/blogs/mt/patching-your-windows-ec2-instances-using-aws-systems-manager-patch-manager/
