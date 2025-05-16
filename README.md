@@ -11,6 +11,9 @@ Get-WindowsUpdateLog
 Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5
 ```
 ```
+Get-HotFix | Sort-Object -Descending -Property InstalledOn
+```
+```
 wmic qfe list
 ```
 ### Check for Pending or Missing Updates
