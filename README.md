@@ -150,6 +150,12 @@ https://medium.com/@AhmedZia01/analyzing-windows-event-logs-with-powershell-get-
 
 ---
 
+### Troubleshooting Windows Update logs
+https://learn.microsoft.com/en-us/windows/deployment/update/windows-update-logs
+
+### Troubleshooting packages
+https://techcommunity.microsoft.com/blog/askperf/msi-troubleshooting-package-installation/373979
+
 ### **Summary Table**
 
 | Event Log                | Event ID | What it Means                        | Where to Find      |
