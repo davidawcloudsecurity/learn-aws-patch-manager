@@ -8,6 +8,10 @@ PackageState : Installed
 ReleaseType  : SecurityUpdate
 InstallTime  : 5/15/2025 7:34:00 PM```
 ```
+```
+DISM /Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35~amd64~~17763.7314.1.18 /quiet /norestart
+```
+```
 wget -O custom_name.zip http://example.com/file.zip
 ```
 ### Monitor Windows Update Installation Logs
