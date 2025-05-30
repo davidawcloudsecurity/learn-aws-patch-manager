@@ -1,4 +1,9 @@
 # learn-aws-patch-manager
+### how to download from windows catalog
+```
+$ProgressPreference = 'SilentlyContinue'
+wget -o test.msu https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/05/windows10.0-kb5058392-x64_2881b28817b6e714e61b61a50de9f68605f02bd2.msu
+```
 ### how to install kb using dism by extracting cab first
 ```
 expand -F:*.cab .\windows10.0-kb5058392-x64_2881b28817b6e714e61b61a50de9f68605f02bd2.msu .
