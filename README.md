@@ -1,5 +1,5 @@
 # learn-aws-patch-manager
-### how to uninstall using dism
+### how to uninstall KB using dism
 Based on 17763.7314 I assume it should be - https://support.microsoft.com/en-au/topic/may-13-2025-kb5058392-os-build-17763-7314-e72d5090-15f1-4562-a7c0-39c1155fa01c
 ```
 Get-WindowsPackage -Online | Where-Object {$_.PackageName -like "*17763.7314*"}
