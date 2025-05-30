@@ -1,4 +1,24 @@
 # learn-aws-patch-manager
+### how to install kb using dism by extracting cab first
+```
+expand -F:*.cab .\windows10.0-kb5058392-x64_2881b28817b6e714e61b61a50de9f68605f02bd2.msu .
+Microsoft (R) File Expansion Utility
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+Adding .\Windows10.0-KB5058392-x64.cab to Extraction Queue
+Adding .\WSUSSCAN.cab to Extraction Queue
+Adding .\SSU-17763.7313-x64.cab to Extraction Queue
+
+Expanding Files ....
+Progress: 0 out of 3 files
+Expanding Files Complete ...
+3 files total.
+```
+Install SSU first then install the main update
+```
+DISM /Online /Add-Package /PackagePath:"C:\temp\SSU-17763.7313-x64.cab" /quiet /norestart
+DISM /Online /Add-Package /PackagePath:"C:\temp\Windows10.0-KB5058392-x64.cab" /quiet /norestart
+```
 ### how to uninstall KB using dism
 Based on 17763.7314 I assume it should be - https://support.microsoft.com/en-au/topic/may-13-2025-kb5058392-os-build-17763-7314-e72d5090-15f1-4562-a7c0-39c1155fa01c
 ```
