@@ -1,4 +1,12 @@
 # learn-aws-patch-manager
+### how to uninstall using dism
+Based on 17763.7314 I assume it should be - https://support.microsoft.com/en-au/topic/may-13-2025-kb5058392-os-build-17763-7314-e72d5090-15f1-4562-a7c0-39c1155fa01c
+```
+Get-WindowsPackage -Online | Where-Object {$_.PackageName -like "*17763.7314*"}
+PackageName  : Package_for_RollupFix~31bf3856ad364e35~amd64~~17763.7314.1.18
+PackageState : Installed
+ReleaseType  : SecurityUpdate
+InstallTime  : 5/15/2025 7:34:00 PM```
 ```
 wget -O custom_name.zip http://example.com/file.zip
 ```
