@@ -610,10 +610,8 @@ try {
     # Check if already installed
     if (Test-KBInstallation $KBNumber) {
         $response = Read-Host "KB$KBNumber is already installed. Do you want to reinstall? (y/N)"
-        if ($response -notmatch '^[Yy]') {
-            Write-Log "Installation cancelled by user" -Level "Info"
-            exit 0
-        }
+        Write-Log "Installation cancelled by user" -Level "Info"
+        exit 0
     }
     
     # Test internet connectivity
