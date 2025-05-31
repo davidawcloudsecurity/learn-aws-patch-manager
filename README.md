@@ -488,3 +488,6 @@ This Terraform setup fully automates your patching and notification requirements
 
 ### Outstanding
 https://chat.deepseek.com/a/chat/s/6dc8da1f-9772-495a-b3f9-2b792086279d
+
+### Resource
+https://powershellcommands.com/powershell-running-in-background
