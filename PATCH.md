@@ -2,10 +2,10 @@ Here's the modified script with dynamic naming and URL handling:
 
 ```powershell
 param(
-    [Parameter(Mandatory=$true)]
-    [string]$KBNumber,
-    [Parameter(Mandatory=$true)]
-    [string]$DownloadURL,
+    [Parameter(Mandatory=$false)]  # Changed to false since we have default values or remove the default values and use $true
+    [string]$KBNumber = "5055175",
+    [Parameter(Mandatory=$false)]  # Changed to false since we have default values
+    [string]$DownloadURL = "https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/updt/2025/03/windows10.0-kb5055175-x64-ndp48_df5de1b5f2a6394b4d40391d6ea8fed4415f806f.msu",
     [string]$TempPath = "C:\temp"
 )
 
