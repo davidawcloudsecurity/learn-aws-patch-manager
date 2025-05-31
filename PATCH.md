@@ -22,21 +22,21 @@ function Write-Log {
 
 function Test-Internet {
     $testUrls = @(
-        "http://www.microsoft.com",
-        "http://www.google.com",
-        "http://www.amazon.com"
+        $DownloadURL
     )
     
     foreach ($url in $testUrls) {
         try {
-            $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+            $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10 -Method Head  # Added -Method Head for efficiency
             if ($response.StatusCode -eq 200) {
+                Write-Log "Successfully verified download URL accessibility"
                 return $true
             }
         }
         catch {
-            Write-Log "Failed to connect to $url"
-            continue
+            Write-Log "Failed to connect to download URL: $url"
+            Write-Log "Error: $_"
+            return $false
         }
     }
     return $false
