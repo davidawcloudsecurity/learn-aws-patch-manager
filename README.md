@@ -39,6 +39,48 @@ DISM /Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35
 ```
 wget -O custom_name.zip http://example.com/file.zip
 ```
+How to pull more information especailly for cumulative updates for .net
+```
+DISM /Online /Get-PackageInfo /PackageName:Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
+
+Deployment Image Servicing and Management tool
+Version: 10.0.17763.5830
+
+Image Version: 10.0.17763.7314
+
+Package information:
+
+Package Identity : Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
+Applicable : Yes
+Copyright : Microsoft Corporation
+Company : Microsoft Corporation
+Creation Time :
+Description : Fix for KB5055175
+Install Client : WindowsUpdateAgent
+Install Package Name : Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1.mum
+Install Time : 5/15/2025 3:15 AM
+Last Update Time :
+Name : default
+Product Name : Package_for_DotNetRollup
+Product Version :
+Release Type : Update
+Restart Required : Possible
+Support Information : http://support.microsoft.com/?kbid=5055175
+State : Installed
+Completely offline capable : No
+Self servicing package : No
+Capability Identity :
+
+Custom Properties:
+
+(No custom properties found)
+
+Features listing for package : Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
+
+(No features found for this package)
+
+The operation completed successfully
+```
 ### Monitor Windows Update Installation Logs
 ```
 Get-WindowsUpdateLog
