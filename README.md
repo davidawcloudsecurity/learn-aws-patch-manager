@@ -26,7 +26,8 @@ DISM /Online /Add-Package /PackagePath:"C:\temp\Windows10.0-KB5058392-x64.cab" /
 ```
 ### Run as job
 ```
-start-job -scriptblock { DISM /Online /Add-Package /PackagePath:"C:\temp\SSU-17763.7313-x64.cab" /quiet /norestart }
+Start-Job -Name "ErrorJob" -ScriptBlock { DISM /Online /Add-Package /PackagePath:"C:\temp\SSU-17763.7313-x64.cab" /quiet /norestart }
+Start-Job -ScriptBlock { DISM /Online /Add-Package /PackagePath:"C:\temp\SSU-17763.7313-x64.cab" /quiet /norestart }
 ```
 ### how to uninstall KB using dism
 Based on 17763.7314 I assume it should be - https://support.microsoft.com/en-au/topic/may-13-2025-kb5058392-os-build-17763-7314-e72d5090-15f1-4562-a7c0-39c1155fa01c
