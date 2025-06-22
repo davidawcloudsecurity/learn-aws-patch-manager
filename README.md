@@ -48,6 +48,11 @@ wget -O custom_name.zip http://example.com/file.zip
 ```
 Get-WindowsPackage -Online | Where-Object {$_.packagename -like "*17763.7434*"} | Select-Object -ExpandProperty packagename
 ```
+### How to pull packagename where packagename contains certain KB metadata (17763.7434)
+```
+DISM /Online /Get-PackageInfo /PackageName:$(Get-WindowsPackage -Online | Where-Object {$_.packagename -like "*17763.7434*"} | Select-Object -Expand
+Property packagename)
+```
 ### How to pull more information especailly for cumulative updates for .net
 ```
 DISM /Online /Get-PackageInfo /PackageName:Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
