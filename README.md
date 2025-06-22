@@ -113,6 +113,11 @@ wmic qfe list
 ```
 (New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
 ```
+### Force update
+```
+wuauclt.exe /resetauthorization /detectnow
+```
+resource - https://inventivehq.com/windows-update-commands-powershell-usoclient-wuauclt/
 
 To install an `.msu` update package using **wusa** (Windows Update Standalone Installer), follow these steps:
 
