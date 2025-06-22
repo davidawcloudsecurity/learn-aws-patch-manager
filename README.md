@@ -44,7 +44,11 @@ DISM /Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35
 ```
 wget -O custom_name.zip http://example.com/file.zip
 ```
-How to pull more information especailly for cumulative updates for .net
+### How to pull names without title
+```
+Get-WindowsPackage -Online | Where-Object {$_.packagename -like "*17763.7434*"} | Select-Object -ExpandProperty packagename
+```
+### How to pull more information especailly for cumulative updates for .net
 ```
 DISM /Online /Get-PackageInfo /PackageName:Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
 
