@@ -248,6 +248,26 @@ https://medium.com/@AhmedZia01/analyzing-windows-event-logs-with-powershell-get-
 
 ---
 
+### 5. **How to schedule DISM**
+```
+# Create the scheduled task
+$action = New-ScheduledTaskAction -Execute 'DISM.exe' -Argument '/Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35~amd64~~14393.8519.1.28'
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)
+$principal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+Register-ScheduledTask -TaskName "Remove_KB5066836" -Action $action -Trigger $trigger -Principal $principal
+# After creating the task
+Start-ScheduledTask -TaskName "Remove_KB5066836"
+
+# To monitor status
+Get-ScheduledTask -TaskName "Remove_KB5066836" | Get-ScheduledTaskInfo
+```
+#### **Start Immediately with Process**
+```
+# Run directly with elevated rights
+Start-Process "DISM.exe" -ArgumentList "/Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35~amd64~~14393.8519.1.28" -Wait -NoNewWindow
+```
+
 ### Troubleshooting Windows Update logs
 https://learn.microsoft.com/en-us/windows/deployment/update/windows-update-logs
 
