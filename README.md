@@ -1,4 +1,9 @@
 # learn-aws-patch-manager
+
+### How to troubleshoot error from Windows patch
+```
+https://learn.microsoft.com/en-us/troubleshoot/windows-server/installing-updates-features-roles/fix-windows-update-errors#common-corruption-errors
+```
 ### how to download from windows catalog
 ```
 $ProgressPreference = 'SilentlyContinue'
