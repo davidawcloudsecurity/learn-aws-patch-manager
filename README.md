@@ -2,6 +2,7 @@
 
 ### How to troubleshoot error from Windows patch
 ```
+https://learn.microsoft.com/en-us/troubleshoot/windows-server/installing-updates-features-roles/error-0x800f0922-installing-windows-updates?source=recommendations
 https://learn.microsoft.com/en-us/troubleshoot/windows-server/installing-updates-features-roles/fix-windows-update-errors#common-corruption-errors
 https://repost.aws/articles/AR4VPU_937RGCwpEYpJeMImw/how-do-i-troubleshoot-and-deep-dive-windows-patching-updates-installation-failures-on-ec2-windows-instances
 ```
