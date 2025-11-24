@@ -1,5 +1,10 @@
 # learn-aws-patch-manager
 
+### How to read windowsupdatelog with guild
+```
+https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbols-windows-update
+```
+
 ### How to troubleshoot error from Windows patch
 ```
 https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/common-windows-update-errors
