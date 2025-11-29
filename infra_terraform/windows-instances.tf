@@ -19,6 +19,34 @@ data "aws_ami" "windows_2016" {
   }
 }
 
+# IAM role for Systems Manager
+resource "aws_iam_role" "ssm_role" {
+  name = "${var.project_tag}-ssm-role"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ssm_profile" {
+  name = "${var.project_tag}-ssm-profile"
+  role = aws_iam_role.ssm_role.name
+}
+
 # Security Group for Windows instances
 resource "aws_security_group" "windows_sg" {
   name        = "windows-instances-sg"
@@ -58,6 +86,28 @@ resource "aws_instance" "wsus_server_2019" {
   subnet_id                  = aws_subnet.public_subnet_01[0].id
   vpc_security_group_ids     = [aws_security_group.windows_sg.id]
   associate_public_ip_address = true
+  iam_instance_profile       = aws_iam_instance_profile.ssm_profile.name
+  
+  user_data = <<-EOF
+    <powershell>
+    # Install WSUS role
+    Install-WindowsFeature -Name UpdateServices -IncludeManagementTools
+    
+    # Create WSUS content directory
+    New-Item -Path "C:\WSUS" -ItemType Directory -Force
+    
+    # Configure WSUS
+    & "C:\Program Files\Update Services\Tools\wsusutil.exe" postinstall CONTENT_DIR=C:\WSUS
+    
+    # Start WSUS services
+    Start-Service WsusService
+    Set-Service WsusService -StartupType Automatic
+    
+    # Configure Windows Firewall
+    New-NetFirewallRule -DisplayName "WSUS HTTP" -Direction Inbound -Protocol TCP -LocalPort 8530 -Action Allow
+    New-NetFirewallRule -DisplayName "WSUS HTTPS" -Direction Inbound -Protocol TCP -LocalPort 8531 -Action Allow
+    </powershell>
+    EOF
   
   tags = {
     Name = "${var.project_tag}-wsus-2019"
@@ -73,6 +123,31 @@ resource "aws_instance" "windows_client_2016" {
   subnet_id                  = aws_subnet.public_subnet_01[0].id
   vpc_security_group_ids     = [aws_security_group.windows_sg.id]
   associate_public_ip_address = true
+  iam_instance_profile       = aws_iam_instance_profile.ssm_profile.name
+  
+  user_data = <<-EOF
+    <powershell>
+    # Configure WSUS client settings via registry
+    $wsusServer = "${aws_instance.wsus_server_2019.private_ip}"
+    
+    # Set WSUS server URL
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://$wsusServer:8530" -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -Value "http://$wsusServer:8530" -Force
+    
+    # Enable WSUS
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 1 -Force
+    
+    # Configure automatic updates
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUOptions" -Value 4 -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "ScheduledInstallDay" -Value 0 -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "ScheduledInstallTime" -Value 3 -Force
+    
+    # Restart Windows Update service
+    Restart-Service wuauserv
+    </powershell>
+    EOF
+  
+  depends_on = [aws_instance.wsus_server_2019]
   
   tags = {
     Name = "${var.project_tag}-client-2016"
