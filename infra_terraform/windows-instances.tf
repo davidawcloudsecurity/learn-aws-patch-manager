@@ -90,6 +90,12 @@ resource "aws_instance" "wsus_server_2019" {
   
   user_data = <<-EOF
     <powershell>
+    # Create local user
+    $username = "ec2-user"
+    $password = "Letmein2021!" | ConvertTo-SecureString -AsPlainText -Force
+    New-LocalUser -Name $username -Password $password -FullName "EC2 User" -Description "Local admin user"
+    Add-LocalGroupMember -Group "Administrators" -Member $username
+    
     # Install WSUS role
     Install-WindowsFeature -Name UpdateServices -IncludeManagementTools
     
@@ -136,6 +142,12 @@ resource "aws_instance" "windows_client_2016" {
   
   user_data = <<-EOF
     <powershell>
+    # Create local user
+    $username = "ec2-user"
+    $password = "Letmein2021!" | ConvertTo-SecureString -AsPlainText -Force
+    New-LocalUser -Name $username -Password $password -FullName "EC2 User" -Description "Local admin user"
+    Add-LocalGroupMember -Group "Administrators" -Member $username
+    
     # Configure WSUS client settings via registry
     $wsusServer = "wsus.davidawcloudsecurity.com"
     
