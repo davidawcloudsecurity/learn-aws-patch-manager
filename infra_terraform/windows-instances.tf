@@ -1,9 +1,3 @@
-locals {
-  env_vars = { for line in split("\n", file("../.env")) : 
-    split("=", line)[0] => split("=", line)[1] if length(split("=", line)) == 2
-  }
-}
-
 # Data source for Windows Server AMIs
 data "aws_ami" "windows_2019" {
   most_recent = true
@@ -96,8 +90,8 @@ resource "aws_instance" "wsus_server_2019" {
   
   user_data = <<-EOF
     <script>
-    net user ${local.env_vars.username} ${local.env_vars.password} /add /fullname:"EC2 User" /comment:"Local admin user"
-    net localgroup administrators ${local.env_vars.username} /add
+    net user ec2-user P@ssw0rd123! /add /fullname:"EC2 User" /comment:"Local admin user"
+    net localgroup administrators ec2-user /add
     </script>
     <powershell>    
     # Install WSUS role
