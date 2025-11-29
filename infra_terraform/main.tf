@@ -22,6 +22,19 @@ resource "aws_internet_gateway" "demo_igw" {
   }
 }
 
+# Private hosted zone
+resource "aws_route53_zone" "private" {
+  name = "davidawcloudsecurity.com"
+  
+  vpc {
+    vpc_id = aws_vpc.demo_main_vpc.id
+  }
+  
+  tags = {
+    Name = "${var.project_tag}-private-zone"
+  }
+}
+
 resource "aws_subnet" "public_subnet_01" {
   count                   = length(var.public_subnet_cidrs)
   vpc_id                  = aws_vpc.demo_main_vpc.id

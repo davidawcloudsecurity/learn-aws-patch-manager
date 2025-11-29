@@ -116,6 +116,15 @@ resource "aws_instance" "wsus_server_2019" {
   }
 }
 
+# DNS record for WSUS server
+resource "aws_route53_record" "wsus" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "wsus.davidawcloudsecurity.com"
+  type    = "A"
+  ttl     = 300
+  records = [aws_instance.wsus_server_2019.private_ip]
+}
+
 # Windows Server 2016 - Client
 resource "aws_instance" "windows_client_2016" {
   ami                         = data.aws_ami.windows_2016.id
@@ -128,7 +137,7 @@ resource "aws_instance" "windows_client_2016" {
   user_data = <<-EOF
     <powershell>
     # Configure WSUS client settings via registry
-    $wsusServer = "${aws_instance.wsus_server_2019.private_ip}"
+    $wsusServer = "wsus.davidawcloudsecurity.com"
     
     # Set WSUS server URL
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://$wsusServer:8530" -Force
@@ -147,7 +156,7 @@ resource "aws_instance" "windows_client_2016" {
     </powershell>
     EOF
   
-  depends_on = [aws_instance.wsus_server_2019]
+  depends_on = [aws_instance.wsus_server_2019, aws_route53_record.wsus]
   
   tags = {
     Name = "${var.project_tag}-client-2016"
