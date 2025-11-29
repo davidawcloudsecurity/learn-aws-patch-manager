@@ -68,7 +68,7 @@ jobs:
           echo "git fetch"
           git fetch origin destroy/main
           git add main.tf
-          git commit -m "random-${COMMIT_HASH}"
+          git commit -m "random-${COMMIT_HASH}" --allow-empty
           cp main.tf main.tf.origin
           git stash
           echo "git checkout"
@@ -81,7 +81,7 @@ jobs:
             git add state
           fi
           git add main.tf
-          git commit -m "random-${COMMIT_HASH}"
+          git commit -m "random-${COMMIT_HASH}" --allow-empty
           # Push the changes to the 'destroy/main' branch
           git push origin destroy/main
         working-directory: infra_terraform
