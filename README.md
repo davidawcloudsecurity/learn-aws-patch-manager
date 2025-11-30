@@ -41,7 +41,7 @@ Run in sequence: **Scan → Download → Install** for security updates only.
 
 ### Here are three one-liners for scan, download, and install using WUA API:
 
-## 1. Scan for Security General
+## 1. Scan for Security Updates
 ```
 $Session = New-Object -ComObject Microsoft.Update.Session
 $Searcher = $Session.CreateUpdateSearcher()
