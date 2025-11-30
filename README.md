@@ -41,6 +41,31 @@ Run in sequence: **Scan → Download → Install** for security updates only.
 
 ### Here are three one-liners for scan, download, and install using WUA API:
 
+## 1. Scan for Security General
+```
+$Session = New-Object -ComObject Microsoft.Update.Session
+$Searcher = $Session.CreateUpdateSearcher()
+$AllUpdates = $Searcher.Search("IsInstalled=0").Updates
+$SecurityUpdates = $AllUpdates | Where-Object {($_.Categories | ForEach-Object {$_.Name}) -contains "Security Updates"}
+
+if($SecurityUpdates.Count -gt 0){
+    $UpdateColl = New-Object -ComObject Microsoft.Update.UpdateColl
+    $SecurityUpdates | ForEach-Object {[void]$UpdateColl.Add($_)}
+    
+    $Downloader = $Session.CreateUpdateDownloader()
+    $Downloader.Updates = $UpdateColl
+    $Downloader.Download()
+    
+    $Installer = $Session.CreateUpdateInstaller()
+    $Installer.Updates = $UpdateColl
+    $Result = $Installer.Install()
+    
+    Write-Host "Installed $($UpdateColl.Count) security updates. Result: $($Result.ResultCode)"
+}else{
+    Write-Host "No security updates available"
+}
+```
+
 ## 1. Scan for Updates General
 ```powershell
 $Session = New-Object -ComObject Microsoft.Update.Session
