@@ -25,9 +25,28 @@ Get-WinEvent -LogName System -MaxEvents 50 | Where-Object {
 Get-WinEvent -LogName "Microsoft-Windows-WindowsUpdateClient/Operational" -MaxEvents 20 | 
     Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
 ```
-Here are three one-liners for scan, download, and install using WUA API:
+### Here are three one-liners for **Security Updates Only**:
 
-## 1. Scan for Updates
+## 1. Scan for Security Updates
+```powershell
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};Write-Host "Security Updates: $($S.Count)";$S|Select Title
+```
+
+## 2. Download Security Updates
+```powershell
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$S;$D.Download();Write-Host "Downloaded Security: $($S.Count)"
+```
+
+## 3. Install Security Updates
+```powershell
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$S;$R=$I.Install();Write-Host "Installed Security: $($S.Count), Result: $($R.ResultCode)"
+```
+
+Run in sequence: **Scan → Download → Install** for security updates only.
+
+### Here are three one-liners for scan, download, and install using WUA API:
+
+## 1. Scan for Updates General
 ```powershell
 $U=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates;Write-Host "Found: $($U.Count) updates";$U|Select Title
 ```
