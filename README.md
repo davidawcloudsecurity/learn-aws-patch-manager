@@ -39,7 +39,7 @@ $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Searc
 
 ## 3. Install Security Updates
 ```powershell
-$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "No security updates"}
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "No security updates"}
 ```
 
 Run in sequence: **Scan → Download → Install** for security updates only.
