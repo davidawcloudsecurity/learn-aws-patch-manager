@@ -11,8 +11,7 @@ Scan for general updates
 ```
 Scan for security updates
 ```
-(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Where-Object {($_.Categories|%{$_.Name}) -contains "Security Updates"} | Select-
-Object Title
+(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Where-Object {($_.Categories|%{$_.Name}) -contains "Security Updates"} | Select-Object Title
 ```
 # Last 50 Windows Update related events
 ```
