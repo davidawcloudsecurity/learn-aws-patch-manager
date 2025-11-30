@@ -131,7 +131,7 @@ resource "aws_route53_record" "wsus" {
 
 # Windows Server 2016 - Client
 resource "aws_instance" "windows_client_2016" {
-  ami                         = data.aws_ami.windows_2016.id
+  ami                        = "ami-02f5c360d1593d538"
   instance_type              = "t3.small"
   subnet_id                  = aws_subnet.public_subnet_01[0].id
   vpc_security_group_ids     = [aws_security_group.windows_sg.id]
