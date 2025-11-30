@@ -34,7 +34,7 @@ $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Searc
 
 ## 2. Download Security Updates
 ```powershell
-$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "No security updates"}
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};if($S.Count -gt 0){$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$S;$D.Download();Write-Host "Downloaded Security: $($S.Count)"}else{Write-Host "No security updates"}
 ```
 
 ## 3. Install Security Updates
