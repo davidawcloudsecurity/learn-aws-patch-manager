@@ -16,15 +16,9 @@ Object Title
 ```
 # Last 50 Windows Update related events
 ```
-Get-WinEvent -LogName System -MaxEvents 50 | Where-Object {
-    $_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"
-} | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
+get-winevent -logname System| Where-Object {$_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"} | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
 ```
-# Windows Update dedicated log
-```
-Get-WinEvent -LogName "Microsoft-Windows-WindowsUpdateClient/Operational" -MaxEvents 20 | 
-    Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
-```
+
 ### Here are three one-liners for **Security Updates Only**:
 
 ## 1. Scan for Security Updates
