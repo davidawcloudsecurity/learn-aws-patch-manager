@@ -4,7 +4,45 @@
 ```
 https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbols-windows-update
 ```
+### How to scan, download and install KB using WUA API
+Scan for general updates
+```
+(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Select-Object Title
+```
+Scan for security updates
+```
+(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Where-Object {($_.Categories|%{$_.Name}) -contains "Security Updates"} | Select-
+Object Title
+```
+# Last 50 Windows Update related events
+```
+Get-WinEvent -LogName System -MaxEvents 50 | Where-Object {
+    $_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"
+} | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
+```
+# Windows Update dedicated log
+```
+Get-WinEvent -LogName "Microsoft-Windows-WindowsUpdateClient/Operational" -MaxEvents 20 | 
+    Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
+```
+Here are three one-liners for scan, download, and install using WUA API:
 
+## 1. Scan for Updates
+```powershell
+$U=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates;Write-Host "Found: $($U.Count) updates";$U|Select Title
+```
+
+## 2. Download Updates
+```powershell
+$U=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates;$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$U;$D.Download();Write-Host "Downloaded: $($U.Count) updates"
+```
+
+## 3. Install Updates
+```powershell
+$U=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates;$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$U;$I.Install();Write-Host "Installed: $($U.Count) updates"
+```
+
+Run them in sequence: **Scan → Download → Install**
 ### How to troubleshoot error from Windows patch
 ```
 https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/common-windows-update-errors
