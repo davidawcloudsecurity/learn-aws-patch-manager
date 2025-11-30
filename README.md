@@ -42,17 +42,19 @@ Run in sequence: **Scan → Download → Install** for security updates only.
 
 ## 1. Scan for Updates General
 ```powershell
-$U=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates;Write-Host "Found: $($U.Count) updates";$U|Select Title
-```
+$Session = New-Object -ComObject Microsoft.Update.Session
+$Searcher = $Session.CreateUpdateSearcher()
+$Updates = $Searcher.Search("IsInstalled=0").Updates
 
-## 2. Download Updates
-```powershell
-$U=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates;$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$U;$D.Download();Write-Host "Downloaded: $($U.Count) updates"
-```
+$Downloader = $Session.CreateUpdateDownloader()
+$Downloader.Updates = $Updates
+$Downloader.Download()  # This downloads the KB files
 
-## 3. Install Updates
-```powershell
-$U=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates;$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$U;$I.Install();Write-Host "Installed: $($U.Count) updates"
+# After downloading successfully, then install:
+# Run this part as Administrator
+$Installer = $Session.CreateUpdateInstaller()
+$Installer.Updates = $Updates
+$Installer.Install()  # This installs the already-downloaded KB files
 ```
 
 Run them in sequence: **Scan → Download → Install**
