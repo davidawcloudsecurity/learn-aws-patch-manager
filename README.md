@@ -24,13 +24,15 @@ get-winevent -logname System| Where-Object {$_.ProviderName -eq "Microsoft-Windo
 ```powershell
 $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};Write-Host "Security Updates: $($S.Count)";$S|Select Title
 ```
-
-## 2. Download Security Updates
+## 2. Scans and Download Security Updates
 ```powershell
 $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();Write-Host "Downloaded Security: $($C.Count)"}else{Write-Host "No security updates"}
 ```
-
-## 3. Install Security Updates
+## 2.1 Scans and Install Security Updates Only
+```
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "No security updates"}
+```
+## 3. Scan, Download and Install Security Updates
 ```powershell
 $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{($_.Categories|%{$_.Name}) -contains "Security Updates"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "No security updates"}
 ```
