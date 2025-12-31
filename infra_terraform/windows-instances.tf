@@ -92,6 +92,9 @@ resource "aws_instance" "wsus_server_2019" {
     <script>
     net user ec2-user P@ssw0rd123! /add /fullname:"EC2 User" /comment:"Local admin user"
     net localgroup administrators ec2-user /add
+    mkdir C:\WSUS\WsusContent
+    cd C:\WSUS\WsusContent
+    curl -LO https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/11/windows10.0-kb5068791-x64_a8b1b1b6c7b6b673c5a5f32772749eb2bb80c88b.msu
     </script>
     <powershell>    
     # Install WSUS role
