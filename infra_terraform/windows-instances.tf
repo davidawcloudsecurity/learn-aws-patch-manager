@@ -130,7 +130,7 @@ resource "aws_route53_record" "wsus" {
 }
 
 # Windows Server 2016 - Client
-resource "aws_instance" "windows_client_2019" {
+resource "aws_instance" "windows_client_2016" {
   ami                        = "ami-0d8940f0876d45867" # "ami-02f5c360d1593d538" windows 2016
   instance_type              = "t3.small"
   subnet_id                  = aws_subnet.public_subnet_01[0].id
@@ -150,8 +150,8 @@ resource "aws_instance" "windows_client_2019" {
     $wsusServer = "wsus.davidawcloudsecurity.com"
     
     # Set WSUS server URL
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://$wsusServer:8530" -Force
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -Value "http://$wsusServer:8530" -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://${wsusServer}:8530" -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -Value "http://$(wsusServer):8530" -Force
     
     # Enable WSUS
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 1 -Force
