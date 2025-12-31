@@ -150,7 +150,7 @@ resource "aws_instance" "windows_client_2016" {
     $wsusServer = "wsus.davidawcloudsecurity.com"
     
     # Set WSUS server URL
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://${wsusServer}:8530" -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://$(wsusServer):8530" -Force
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -Value "http://$(wsusServer):8530" -Force
     
     # Enable WSUS
