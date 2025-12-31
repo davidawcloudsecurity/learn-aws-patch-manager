@@ -48,10 +48,11 @@ $SecurityUpdates | Approve-WsusUpdate -Action Install -TargetGroupName "All Comp
 5. Approve Updates by Title Pattern:
 
 ### Approve all Windows 11 security updates
+```
 Get-WsusUpdate -UpdateServer $WSUSServer | 
 Where-Object {$_.Title -like "*Windows 11*" -and $_.Classification -eq "Security Updates"} | 
 Approve-WsusUpdate -Action Install -TargetGroupName "Windows 11 Computers"
-
+```
 Client-Side Configuration
 1. Configure Windows Update Settings:
 
