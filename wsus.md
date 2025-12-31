@@ -1,3 +1,83 @@
+### Sync WSUS
+```
+How WSUS Actually Works:
+Method 1: Automatic Sync (Recommended)
+
+# WSUS downloads updates automatically from Microsoft
+$WSUSServer = Get-WsusServer
+$subscription = $WSUSServer.GetSubscription()
+
+# Start sync - WSUS will download all approved updates automatically
+$subscription.StartSynchronization()
+
+# Check what updates are available after sync
+Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.KnowledgebaseArticles -contains "5068791"}
+
+Two Ways WSUS Gets Updates:
+1. Automatic Synchronization (Normal Way):
+
+WSUS connects to Microsoft Update
+Downloads metadata and update files automatically
+You just approve/decline what you want to deploy
+No manual MSU downloads needed
+2. Manual Import (Only for Special Cases):
+
+For updates not available through normal sync
+For offline environments
+For custom/third-party updates
+This is what you were trying to do with the MSU
+Configure WSUS to Sync Automatically:
+1. Check current sync settings:
+
+$WSUSServer = Get-WsusServer
+$subscription = $WSUSServer.GetSubscription()
+$subscription.GetSubscriptionProperties()
+
+2. Configure automatic sync:
+
+# Set sync schedule (daily at 3 AM)
+$subscription.SynchronizeAutomatically = $true
+$subscription.SynchronizeAutomaticallyTimeOfDay = (New-TimeSpan -Hours 3)
+$subscription.NumberOfSynchronizationsPerDay = 1
+$subscription.Save()
+
+3. Manual sync right now:
+
+$subscription.StartSynchronization()
+
+Normal WSUS Workflow:
+WSUS syncs with Microsoft (automatically downloads updates)
+You review available updates in WSUS console
+You approve updates for deployment
+Client computers download from your WSUS server
+Check if KB5068791 is Available via Sync:
+# After sync completes, search for your update
+$WSUSServer = Get-WsusServer
+$Update = Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.KnowledgebaseArticles -contains "5068791"}
+
+if ($Update) {
+    Write-Host "Found: $($Update.Title)"
+    Write-Host "Classification: $($Update.Classification)"
+    
+    # Approve it for deployment
+    $Update | Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+} else {
+    Write-Host "Update not available through sync - may need manual import"
+}
+
+Summary:
+Normal process: WSUS syncs → You approve → Clients install
+Manual MSU: Only needed for special cases or offline scenarios
+Your situation: Try sync first, manual import only if the update isn't available through normal channels
+You can delete that corrupted MSU file and just let WSUS sync normally. Much easier!
+
+# Clean up the manual MSU file
+Remove-Item "C:\WSUS\WsusContent\windows10.0-kb5068791-x64_a8b1b1b6c7b6b673c5a5f32772749eb2bb80c88b.msu" -Force
+
+# Let WSUS do its job automatically
+$WSUSServer = Get-WsusServer
+$WSUSServer.GetSubscription().StartSynchronization()
+```
 ### Recommended Steps:
 ```
 1. First, try WSUSUTIL import:
