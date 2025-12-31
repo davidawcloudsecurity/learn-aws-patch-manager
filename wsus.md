@@ -1,3 +1,27 @@
+### Recommended Steps:
+```
+1. First, try WSUSUTIL import:
+
+cd "C:\Program Files\Update Services\Tools"
+wsusutil.exe import "C:\WSUS\WsusContent\windows10.0-kb5068791-x64_a8b1b1b6c7b6b673c5a5f32772749eb2bb80c88b.msu" "C:\temp\import.log"
+
+2. Check the import log:
+
+Get-Content "C:\temp\import.log"
+
+3. Verify the import worked:
+
+$WSUSServer = Get-WsusServer
+$Update = Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.KnowledgebaseArticles -contains "5068791"}
+
+if ($Update) {
+    Write-Host "SUCCESS: Update imported - $($Update.Title)"
+    # Approve it
+    $Update | Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+} else {
+    Write-Host "Import failed - check import.log for errors"
+}
+```
 ### Check if WSUS is setup
 ```
 Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -ErrorAction SilentlyContinue
