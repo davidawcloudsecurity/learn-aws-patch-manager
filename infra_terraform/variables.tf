@@ -51,3 +51,9 @@ variable "create_route53" {
   type        = bool
   default     = true
 }
+
+variable "use_existing_iam" {
+  description = "Set to true if IAM role already exists"
+  type        = bool
+  default     = false
+}
