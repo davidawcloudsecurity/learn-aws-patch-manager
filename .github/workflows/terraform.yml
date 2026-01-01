@@ -42,17 +42,13 @@ jobs:
           terraform validate
           terraform plan
           echo "Checking learn-tf-aws-vpc-ssm-profile..."
-          if aws iam get-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile >/dev/null 2>&1; then
-              ROLES=$(aws iam get-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile --query 'InstanceProfile.Roles[*].RoleName' --output text)
-              for ROLE in $ROLES; do
-                  aws iam remove-role-from-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile --role-name "$ROLE"
-              done
-              sleep 2
-              aws iam delete-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile
+          if aws iam get-role --role-name learn-tf-aws-vpc-ssm-role >/dev/null 2>&1; then
+              export TF_VAR_use_existing_iam=true
+              echo "Role exists - will use existing"
           else
-              echo "Profile doesn't exist"
-              aws iam get-role --role-name learn-tf-aws-vpc-ssm-role && export TF_VAR_use_existing_iam=false
-          fi       
+              export TF_VAR_use_existing_iam=false
+              echo "Role doesn't exist - will create new"
+          fi   
           terraform apply --auto-approve
         working-directory: infra_terraform
 
