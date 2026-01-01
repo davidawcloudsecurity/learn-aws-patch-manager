@@ -1,126 +1,107 @@
-# This is a basic workflow to help you get started with Actions
-name: learn-aws-patch-manager
 
-# Controls when the action will run. Invokes the workflow on push events but only for the main branch
-on:
-  workflow_dispatch:
+# Define AWS as the provider with the specified region.
+provider "aws" {
+  region = var.region # Use the region specified in the variable "region".
+}
 
-env:
+# Create an AWS VPC with the specified CIDR block and tags.
+resource "aws_vpc" "demo_main_vpc" {
+  count                = var.create_vpc ? 1 : 0
+  cidr_block           = var.main_cidr_block
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  tags = {
+    Name = var.project_tag
+  }
+}
+
+# Internet Gateway
+resource "aws_internet_gateway" "demo_igw" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
+  tags = {
+    Name = "${var.project_tag}-igw"
+  }
+}
+
+# Private hosted zone
+resource "aws_route53_zone" "private" {
+  count = var.create_route53 ? 1 : 0
+  name  = "davidawcloudsecurity.com"
   
-  AWS_REGION : "us-east-1" #Change to reflect your Region  
+  vpc {
+    vpc_id = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : data.aws_vpc.existing[0].id
+  }
+  
+  tags = {
+    Name = "${var.project_tag}-private-zone"
+  }
+}
 
-# Permission can be added at job level or workflow level    
-permissions:
-      id-token: write   # This is required for requesting the JWT
-      contents: write    # This is required for actions/checkout
-jobs:
-  AssumeRoleAndCallIdentity:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Git clone the repository
-        uses: actions/checkout@v3  
-      - name: configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v1.7.0
-        with:
-          role-to-assume: arn:aws:iam::233812220516:role/githubactions #change to reflect your IAM role’s ARN
-          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-          aws-region: ${{ env.AWS_REGION }}
+# Data source for existing VPC (when not creating new one)
+data "aws_vpc" "existing" {
+  count = var.create_vpc ? 0 : 1
+  
+  filter {
+    name   = "tag:Name"
+    values = [var.project_tag]
+  }
+}
 
-      # Hello from AWS: WhoAmI
-      - name: Sts GetCallerIdentity
-        run: |
-          aws sts get-caller-identity
-          
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v1
-        
-      # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
-      - name: Terraform Init
-        run: |
-          terraform init
-          terraform fmt
-          terraform validate
-          echo "Checking learn-tf-aws-vpc-ssm-profile..."
-          if aws iam get-role --role-name learn-tf-aws-vpc-ssm-role >/dev/null 2>&1; then
-              echo "Role exists - will use existing"
-              terraform plan -var="use_existing_iam=true"
-              terraform apply --auto-approve -var="use_existing_iam=true"
-          else
-              echo "Role doesn't exist - will create new"
-              terraform plan -var="use_existing_iam=false"
-              terraform apply --auto-approve -var="use_existing_iam=false"
-          fi
-        working-directory: infra_terraform
+resource "aws_subnet" "public_subnet_01" {
+  count                   = var.create_vpc ? length(var.public_subnet_cidrs) : 0
+  vpc_id                  = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
+  cidr_block              = var.public_subnet_cidrs[count.index]
+  availability_zone       = var.azs[count.index]
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "${var.project_tag}-pb-sub-01"
+  }
+}
 
-      - name: Git Config
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/davidawcloudsecurity/learn-aws-patch-manager.git                   
-          # Get the latest commit hash
-          COMMIT_HASH=$(git rev-parse --short HEAD)          
-          
-          # Fetch the latest changes from the remote 'destroy/main' branch
-          git status
-          echo "git fetch"
-          git fetch origin destroy/main
-          git add main.tf
-          git commit -m "random-${COMMIT_HASH}" --allow-empty
-          cp main.tf main.tf.origin
-          git stash
-          echo "git checkout"
-          git checkout destroy/main
-          echo "git merge"
-          git merge origin/destroy/main
-          mv main.tf.origin main.tf
-          if [ -f terraform.tfstate ]; then
-            mv terraform.tfstate state/
-            git add state
-          fi
-          git add main.tf
-          git commit -m "random-${COMMIT_HASH}" --allow-empty
-          # Push the changes to the 'destroy/main' branch
-          git push origin destroy/main
-        working-directory: infra_terraform
+# Data source for existing public subnets
+data "aws_subnets" "existing_public" {
+  count = var.create_vpc ? 0 : 1
+  
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.existing[0].id]
+  }
+  
+  filter {
+    name   = "tag:Name"
+    values = ["${var.project_tag}-pb-sub-01"]
+  }
+}
 
-      - name: Terraform Destroy on Failure
-        if: failure()
-        run: |
-          terraform destroy -auto-approve -input=false
-          echo "Check if learn-tf-aws-vpc-ssm-role exists"
-          if [ -n "$(aws iam list-roles --query 'Roles[*].RoleName' | grep learn-tf-aws-vpc-ssm-role | sed 's/[",]//g')" ]; then
-              ROLE_NAME="learn-tf-aws-vpc-ssm-role"
-              INSTANCE_PROFILE_NAME="learn-tf-aws-vpc-ssm-profile"
-              
-              echo "Removing role from instance profile first..."
-              # Remove role from instance profile
-              aws iam remove-role-from-instance-profile --instance-profile-name "$INSTANCE_PROFILE_NAME" --role-name "$ROLE_NAME" 2>/dev/null || echo "Role not in instance profile or doesn't exist"
-              
-              echo "Deleting instance profile: $INSTANCE_PROFILE_NAME"
-              aws iam delete-instance-profile --instance-profile-name "$INSTANCE_PROFILE_NAME" 2>/dev/null || echo "Instance profile doesn't exist"
-              
-              echo "Detaching managed policies from role: $ROLE_NAME"
-              # Detach AWS managed policies
-              aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" 2>/dev/null || echo "Policy already detached or doesn't exist"
-              
-              echo "Detaching inline policies from role: $ROLE_NAME"
-              # List and delete inline policies
-              INLINE_POLICIES=$(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output text)
-              for POLICY in $INLINE_POLICIES; do
-                  if [ "$POLICY" != "None" ] && [ -n "$POLICY" ]; then
-                      aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY"
-                      echo "Deleted inline policy: $POLICY"
-                  fi
-              done
-              
-              echo "Deleting role: $ROLE_NAME"
-              aws iam delete-role --role-name "$ROLE_NAME"
-              echo "Role deleted successfully"
-          else
-              echo "Role learn-tf-aws-vpc-ssm-role does not exist"
-          fi
-          echo "Check if learn-tf-aws-vpc-ssm-profile exist"
-          if [ -n "$(aws iam list-instance-profiles --query InstanceProfiles[*].InstanceProfileName | grep learn-tf-aws-vpc-ssm-profile | sed 's/[",]//g')" ]; then
-            aws iam delete-instance-profile --instance-profile-name $(aws iam list-instance-profiles --query InstanceProfiles[*].InstanceProfileName | grep learn-tf-aws-vpc-ssm-profile | sed 's/[",]//g')
-          fi
-        working-directory: infra_terraform
+resource "aws_subnet" "private_subnet_01" {
+  count             = var.create_vpc ? length(var.private_subnet_cidrs) : 0
+  vpc_id            = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
+  cidr_block        = var.private_subnet_cidrs[count.index]
+  availability_zone = var.azs[count.index]
+  tags = {
+    Name = "${var.project_tag}-pv-sub-01"
+  }
+}
+
+# Public Route Table
+resource "aws_route_table" "public_rt" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
+  
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = var.create_vpc ? aws_internet_gateway.demo_igw[0].id : null
+  }
+  
+  tags = {
+    Name = "${var.project_tag}-public-rt"
+  }
+}
+
+# Associate public subnets with public route table
+resource "aws_route_table_association" "public_rta" {
+  count          = var.create_vpc ? length(aws_subnet.public_subnet_01) : 0
+  subnet_id      = aws_subnet.public_subnet_01[count.index].id
+  route_table_id = aws_route_table.public_rt[0].id
+}
