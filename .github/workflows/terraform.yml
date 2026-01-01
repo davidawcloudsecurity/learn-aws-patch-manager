@@ -91,9 +91,29 @@ jobs:
         if: failure()
         run: |
           terraform destroy -auto-approve -input=false
-          echo "Check if learn-tf-aws-vpc-ssm-role exist"
+          echo "Check if learn-tf-aws-vpc-ssm-role exists"
           if [ -n "$(aws iam list-roles --query 'Roles[*].RoleName' | grep learn-tf-aws-vpc-ssm-role | sed 's/[",]//g')" ]; then
-            aws iam delete-role --role-name $(aws iam list-roles --query 'Roles[*].RoleName' | grep learn-tf-aws-vpc-ssm-role | sed 's/[",]//g')
+              ROLE_NAME="learn-tf-aws-vpc-ssm-role"
+              
+              echo "Detaching managed policies from role: $ROLE_NAME"
+              # Detach AWS managed policies
+              aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" 2>/dev/null || echo "Policy already detached or doesn't exist"
+              
+              echo "Detaching inline policies from role: $ROLE_NAME"
+              # List and delete inline policies
+              INLINE_POLICIES=$(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output text)
+              for POLICY in $INLINE_POLICIES; do
+                  if [ "$POLICY" != "None" ] && [ -n "$POLICY" ]; then
+                      aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY"
+                      echo "Deleted inline policy: $POLICY"
+                  fi
+              done
+              
+              echo "Deleting role: $ROLE_NAME"
+              aws iam delete-role --role-name "$ROLE_NAME"
+              echo "Role deleted successfully"
+          else
+              echo "Role learn-tf-aws-vpc-ssm-role does not exist"
           fi
           echo "Check if learn-tf-aws-vpc-ssm-profile exist"
           if [ -n "$(aws iam list-instance-profiles --query InstanceProfiles[*].InstanceProfileName | grep learn-tf-aws-vpc-ssm-profile | sed 's/[",]//g')" ]; then
