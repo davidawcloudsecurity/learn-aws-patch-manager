@@ -21,16 +21,18 @@ data "aws_ami" "windows_2016" {
 
 # Data sources to check for existing IAM resources
 data "aws_iam_role" "existing_ssm_role" {
-  name = "${var.project_tag}-ssm-role"
+  count = 1
+  name  = "${var.project_tag}-ssm-role"
 }
 
 data "aws_iam_instance_profile" "existing_ssm_profile" {
-  name = "${var.project_tag}-ssm-profile"
+  count = 1
+  name  = "${var.project_tag}-ssm-profile"
 }
 
 # IAM role for Systems Manager - only create if it doesn't exist
 resource "aws_iam_role" "ssm_role" {
-  count = var.create_windows_instances && !can(data.aws_iam_role.existing_ssm_role.arn) ? 1 : 0
+  count = var.create_windows_instances && !can(data.aws_iam_role.existing_ssm_role[0].arn) ? 1 : 0
   name  = "${var.project_tag}-ssm-role"
   
   assume_role_policy = jsonencode({
@@ -48,19 +50,20 @@ resource "aws_iam_role" "ssm_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
-  count      = var.create_windows_instances && !can(data.aws_iam_role.existing_ssm_role.arn) ? 1 : 0
+  count      = var.create_windows_instances && !can(data.aws_iam_role.existing_ssm_role[0].arn) ? 1 : 0
   role       = aws_iam_role.ssm_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_instance_profile" "ssm_profile" {
-  count = var.create_windows_instances && !can(data.aws_iam_instance_profile.existing_ssm_profile.arn) ? 1 : 0
+  count = var.create_windows_instances && !can(data.aws_iam_instance_profile.existing_ssm_profile[0].arn) ? 1 : 0
   name  = "${var.project_tag}-ssm-profile"
-  role  = can(data.aws_iam_role.existing_ssm_role.arn) ? data.aws_iam_role.existing_ssm_role.name : aws_iam_role.ssm_role[0].name
+  role  = can(data.aws_iam_role.existing_ssm_role[0].arn) ? data.aws_iam_role.existing_ssm_role[0].name : aws_iam_role.ssm_role[0].name
 }
 
 # Data sources to check for existing VPC resources
 data "aws_vpc" "existing_vpc" {
+  count = 1
   filter {
     name   = "tag:Name"
     values = [var.project_tag]
@@ -68,8 +71,9 @@ data "aws_vpc" "existing_vpc" {
 }
 
 data "aws_security_group" "existing_windows_sg" {
+  count  = 1
   name   = "windows-instances-sg"
-  vpc_id = can(data.aws_vpc.existing_vpc.id) ? data.aws_vpc.existing_vpc.id : aws_vpc.demo_main_vpc[0].id
+  vpc_id = length(data.aws_vpc.existing_vpc) > 0 ? data.aws_vpc.existing_vpc[0].id : null
 }
 
 # Security Group for Windows instances
