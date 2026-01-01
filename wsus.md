@@ -1,3 +1,11 @@
+### Scripts to import manual download msu / KB into c:\wsus\wsuscontent
+```
+$kb = "C:\WSUS\WsusContent\windows10.0-kb5068791-x64.msu"
+$guid = "da327f7c-5d64-43dc-9671-72723a5074f3"
+(Get-WsusServer).ImportUpdateFromCatalogSite($guid, $kb)
+
+(Get-WsusServer).SearchUpdates('5068791')
+```
 ### Sync WSUS
 ```
 How WSUS Actually Works:
