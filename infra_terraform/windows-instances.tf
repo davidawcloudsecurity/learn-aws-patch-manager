@@ -21,7 +21,8 @@ data "aws_ami" "windows_2016" {
 
 # IAM role for Systems Manager
 resource "aws_iam_role" "ssm_role" {
-  name = "${var.project_tag}-ssm-role"
+  count = var.create_windows_instances ? 1 : 0
+  name  = "${var.project_tag}-ssm-role"
   
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -38,20 +39,34 @@ resource "aws_iam_role" "ssm_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
-  role       = aws_iam_role.ssm_role.name
+  count      = var.create_windows_instances ? 1 : 0
+  role       = aws_iam_role.ssm_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_instance_profile" "ssm_profile" {
-  name = "${var.project_tag}-ssm-profile"
-  role = aws_iam_role.ssm_role.name
+  count = var.create_windows_instances ? 1 : 0
+  name  = "${var.project_tag}-ssm-profile"
+  role  = aws_iam_role.ssm_role[0].name
+}
+
+# Data sources for existing IAM resources
+data "aws_iam_role" "existing_ssm_role" {
+  count = var.create_windows_instances ? 0 : 1
+  name  = "${var.project_tag}-ssm-role"
+}
+
+data "aws_iam_instance_profile" "existing_ssm_profile" {
+  count = var.create_windows_instances ? 0 : 1
+  name  = "${var.project_tag}-ssm-profile"
 }
 
 # Security Group for Windows instances
 resource "aws_security_group" "windows_sg" {
+  count       = var.create_windows_instances ? 1 : 0
   name        = "windows-instances-sg"
   description = "Security group for Windows EC2 instances"
-  vpc_id      = aws_vpc.demo_main_vpc.id
+  vpc_id      = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : data.aws_vpc.existing[0].id
   
   ingress {
     from_port   = 3389
@@ -79,14 +94,22 @@ resource "aws_security_group" "windows_sg" {
   }
 }
 
+# Data source for existing security group
+data "aws_security_group" "existing_windows_sg" {
+  count = var.create_windows_instances ? 0 : 1
+  name  = "windows-instances-sg"
+  vpc_id = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : data.aws_vpc.existing[0].id
+}
+
 # Windows Server 2019 - WSUS Server
 resource "aws_instance" "wsus_server_2019" {
+  count                       = var.create_windows_instances ? 1 : 0
   ami                         = data.aws_ami.windows_2019.id
   instance_type              = "t3.medium"
-  subnet_id                  = aws_subnet.public_subnet_01[0].id
-  vpc_security_group_ids     = [aws_security_group.windows_sg.id]
+  subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
+  vpc_security_group_ids     = var.create_windows_instances ? [aws_security_group.windows_sg[0].id] : [data.aws_security_group.existing_windows_sg[0].id]
   associate_public_ip_address = true
-  iam_instance_profile       = aws_iam_instance_profile.ssm_profile.name
+  iam_instance_profile       = var.create_windows_instances ? aws_iam_instance_profile.ssm_profile[0].name : data.aws_iam_instance_profile.existing_ssm_profile[0].name
   
   user_data = <<-EOF
     <script>
@@ -125,21 +148,44 @@ resource "aws_instance" "wsus_server_2019" {
 
 # DNS record for WSUS server
 resource "aws_route53_record" "wsus" {
-  zone_id = aws_route53_zone.private.zone_id
+  count   = var.create_windows_instances && var.create_route53 ? 1 : 0
+  zone_id = var.create_route53 ? aws_route53_zone.private[0].zone_id : data.aws_route53_zone.existing_private[0].zone_id
   name    = "wsus.davidawcloudsecurity.com"
   type    = "A"
   ttl     = 300
-  records = [aws_instance.wsus_server_2019.private_ip]
+  records = var.create_windows_instances ? [aws_instance.wsus_server_2019[0].private_ip] : [data.aws_instance.existing_wsus[0].private_ip]
+}
+
+# Data sources for existing resources
+data "aws_route53_zone" "existing_private" {
+  count        = var.create_route53 ? 0 : 1
+  name         = "davidawcloudsecurity.com"
+  private_zone = true
+}
+
+data "aws_instance" "existing_wsus" {
+  count = var.create_windows_instances ? 0 : 1
+  
+  filter {
+    name   = "tag:Name"
+    values = ["${var.project_tag}-wsus-2019"]
+  }
+  
+  filter {
+    name   = "instance-state-name"
+    values = ["running"]
+  }
 }
 
 # Windows Server 2016 - Client
 resource "aws_instance" "windows_client_2016" {
+  count                       = var.create_windows_instances ? 1 : 0
   ami                        = "ami-0d8940f0876d45867" # "ami-02f5c360d1593d538" windows 2016
   instance_type              = "t3.small"
-  subnet_id                  = aws_subnet.public_subnet_01[0].id
-  vpc_security_group_ids     = [aws_security_group.windows_sg.id]
+  subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
+  vpc_security_group_ids     = var.create_windows_instances ? [aws_security_group.windows_sg[0].id] : [data.aws_security_group.existing_windows_sg[0].id]
   associate_public_ip_address = true
-  iam_instance_profile       = aws_iam_instance_profile.ssm_profile.name
+  iam_instance_profile       = var.create_windows_instances ? aws_iam_instance_profile.ssm_profile[0].name : data.aws_iam_instance_profile.existing_ssm_profile[0].name
   
   user_data = <<-EOF
     <powershell>
@@ -166,7 +212,7 @@ resource "aws_instance" "windows_client_2016" {
     </powershell>
     EOF
   
-  depends_on = [aws_instance.wsus_server_2019, aws_route53_record.wsus]
+  depends_on = var.create_windows_instances ? [aws_instance.wsus_server_2019[0], aws_route53_record.wsus[0]] : [data.aws_instance.existing_wsus[0]]
   
   tags = {
     Name = "${var.project_tag}-client-2016"
