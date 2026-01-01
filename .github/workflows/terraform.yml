@@ -43,13 +43,12 @@ jobs:
           terraform plan
           echo "Checking learn-tf-aws-vpc-ssm-profile..."
           if aws iam get-role --role-name learn-tf-aws-vpc-ssm-role >/dev/null 2>&1; then
-              export TF_VAR_use_existing_iam=true
               echo "Role exists - will use existing"
+              terraform apply --auto-approve -var="use_existing_iam=true"
           else
-              export TF_VAR_use_existing_iam=false
               echo "Role doesn't exist - will create new"
-          fi   
-          terraform apply --auto-approve
+              terraform apply --auto-approve -var="use_existing_iam=false"
+          fi
         working-directory: infra_terraform
 
       - name: Git Config
