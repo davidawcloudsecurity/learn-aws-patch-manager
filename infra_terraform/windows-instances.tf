@@ -19,9 +19,18 @@ data "aws_ami" "windows_2016" {
   }
 }
 
-# IAM role for Systems Manager
+# Data sources to check for existing IAM resources
+data "aws_iam_role" "existing_ssm_role" {
+  name = "${var.project_tag}-ssm-role"
+}
+
+data "aws_iam_instance_profile" "existing_ssm_profile" {
+  name = "${var.project_tag}-ssm-profile"
+}
+
+# IAM role for Systems Manager - only create if it doesn't exist
 resource "aws_iam_role" "ssm_role" {
-  count = var.create_windows_instances ? 1 : 0
+  count = var.create_windows_instances && !can(data.aws_iam_role.existing_ssm_role.arn) ? 1 : 0
   name  = "${var.project_tag}-ssm-role"
   
   assume_role_policy = jsonencode({
@@ -39,26 +48,15 @@ resource "aws_iam_role" "ssm_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
-  count      = var.create_windows_instances ? 1 : 0
+  count      = var.create_windows_instances && !can(data.aws_iam_role.existing_ssm_role.arn) ? 1 : 0
   role       = aws_iam_role.ssm_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_instance_profile" "ssm_profile" {
-  count = var.create_windows_instances ? 1 : 0
+  count = var.create_windows_instances && !can(data.aws_iam_instance_profile.existing_ssm_profile.arn) ? 1 : 0
   name  = "${var.project_tag}-ssm-profile"
-  role  = aws_iam_role.ssm_role[0].name
-}
-
-# Data sources for existing IAM resources
-data "aws_iam_role" "existing_ssm_role" {
-  count = var.create_windows_instances ? 0 : 1
-  name  = "${var.project_tag}-ssm-role"
-}
-
-data "aws_iam_instance_profile" "existing_ssm_profile" {
-  count = var.create_windows_instances ? 0 : 1
-  name  = "${var.project_tag}-ssm-profile"
+  role  = can(data.aws_iam_role.existing_ssm_role.arn) ? data.aws_iam_role.existing_ssm_role.name : aws_iam_role.ssm_role[0].name
 }
 
 # Security Group for Windows instances
@@ -109,7 +107,7 @@ resource "aws_instance" "wsus_server_2019" {
   subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
   vpc_security_group_ids     = var.create_windows_instances ? [aws_security_group.windows_sg[0].id] : [data.aws_security_group.existing_windows_sg[0].id]
   associate_public_ip_address = true
-  iam_instance_profile       = var.create_windows_instances ? aws_iam_instance_profile.ssm_profile[0].name : data.aws_iam_instance_profile.existing_ssm_profile[0].name
+  iam_instance_profile       = can(data.aws_iam_instance_profile.existing_ssm_profile.arn) ? data.aws_iam_instance_profile.existing_ssm_profile.name : aws_iam_instance_profile.ssm_profile[0].name
   
   user_data = <<-EOF
     <script>
@@ -185,7 +183,7 @@ resource "aws_instance" "windows_client_2016" {
   subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
   vpc_security_group_ids     = var.create_windows_instances ? [aws_security_group.windows_sg[0].id] : [data.aws_security_group.existing_windows_sg[0].id]
   associate_public_ip_address = true
-  iam_instance_profile       = var.create_windows_instances ? aws_iam_instance_profile.ssm_profile[0].name : data.aws_iam_instance_profile.existing_ssm_profile[0].name
+  iam_instance_profile       = can(data.aws_iam_instance_profile.existing_ssm_profile.arn) ? data.aws_iam_instance_profile.existing_ssm_profile.name : aws_iam_instance_profile.ssm_profile[0].name
   
   user_data = <<-EOF
     <powershell>
