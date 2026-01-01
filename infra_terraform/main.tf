@@ -18,7 +18,7 @@ resource "aws_vpc" "demo_main_vpc" {
 # Internet Gateway
 resource "aws_internet_gateway" "demo_igw" {
   count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.demo_main_vpc[0].id
+  vpc_id = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
   tags = {
     Name = "${var.project_tag}-igw"
   }
@@ -50,7 +50,7 @@ data "aws_vpc" "existing" {
 
 resource "aws_subnet" "public_subnet_01" {
   count                   = var.create_vpc ? length(var.public_subnet_cidrs) : 0
-  vpc_id                  = aws_vpc.demo_main_vpc[0].id
+  vpc_id                  = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = var.azs[count.index]
   map_public_ip_on_launch = true
@@ -76,7 +76,7 @@ data "aws_subnets" "existing_public" {
 
 resource "aws_subnet" "private_subnet_01" {
   count             = var.create_vpc ? length(var.private_subnet_cidrs) : 0
-  vpc_id            = aws_vpc.demo_main_vpc[0].id
+  vpc_id            = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
   cidr_block        = var.private_subnet_cidrs[count.index]
   availability_zone = var.azs[count.index]
   tags = {
@@ -87,11 +87,11 @@ resource "aws_subnet" "private_subnet_01" {
 # Public Route Table
 resource "aws_route_table" "public_rt" {
   count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.demo_main_vpc[0].id
+  vpc_id = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
   
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.demo_igw[0].id
+    gateway_id = var.create_vpc ? aws_internet_gateway.demo_igw[0].id : null
   }
   
   tags = {
