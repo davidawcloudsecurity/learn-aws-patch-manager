@@ -202,12 +202,7 @@ resource "aws_instance" "windows_client_2016" {
   
   user_data = <<-EOF
     <powershell>
-    # Create local user
-    $username = "ec2-user"
-    $password = "Letmein2021!" | ConvertTo-SecureString -AsPlainText -Force
-    New-LocalUser -Name $username -Password $password -FullName "EC2 User" -Description "Local admin user"
-    Add-LocalGroupMember -Group "Administrators" -Member $username
-       
+      
     # Set WSUS server URL
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://wsus.davidawcloudsecurity.com:8530" -Force
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -Value "http://wsus.davidawcloudsecurity.com:8530" -Force
