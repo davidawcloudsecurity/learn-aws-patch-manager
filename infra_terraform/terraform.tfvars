@@ -6,3 +6,4 @@ project_tag     = "learn-tf-aws-vpc"
 create_vpc               = true
 create_windows_instances = true
 create_route53          = true
+use_existing_iam        = false
