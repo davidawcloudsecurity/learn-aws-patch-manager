@@ -33,3 +33,21 @@ variable "azs" {
   description = "Availability Zones"
   default     = ["us-east-1a"]
 }
+
+variable "create_vpc" {
+  description = "Whether to create VPC resources"
+  type        = bool
+  default     = true
+}
+
+variable "create_windows_instances" {
+  description = "Whether to create Windows instances"
+  type        = bool
+  default     = true
+}
+
+variable "create_route53" {
+  description = "Whether to create Route53 private zone"
+  type        = bool
+  default     = true
+}
