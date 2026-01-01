@@ -51,6 +51,7 @@ jobs:
               aws iam delete-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile
           else
               echo "Profile doesn't exist"
+              aws iam get-role --role-name learn-tf-aws-vpc-ssm-role && export TF_VAR_use_existing_iam=false
           fi       
           terraform apply --auto-approve
         working-directory: infra_terraform
