@@ -37,11 +37,24 @@ jobs:
       # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
       - name: Terraform Init
         run: |
+          # Pull existing state from destroy/main branch if it exists
+          echo "Checking for existing Terraform state..."
+          git fetch origin destroy/main 2>/dev/null || echo "destroy/main branch doesn't exist yet"
+          if git show-branch remotes/origin/destroy/main 2>/dev/null; then
+              echo "Found destroy/main branch, checking for state files..."
+              git checkout destroy/main
+              if [ -d "state" ] && [ -f "state/terraform.tfstate" ]; then
+                  echo "Found existing state, copying to working directory..."
+                  cp state/terraform.tfstate ./terraform.tfstate
+              fi
+              git checkout main
+          fi
+          
           terraform init
           terraform fmt
           terraform validate
           terraform plan
-          echo "Checking learn-tf-aws-vpc-ssm-profile..."
+          echo "Checking existing resources..."
           if aws iam get-role --role-name learn-tf-aws-vpc-ssm-role >/dev/null 2>&1; then
               echo "Role exists - will use existing"
               terraform apply --auto-approve -var="use_existing_iam=true"
