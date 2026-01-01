@@ -54,14 +54,7 @@ jobs:
           terraform fmt
           terraform validate
           terraform plan
-          echo "Checking existing resources..."
-          if aws iam get-role --role-name learn-tf-aws-vpc-ssm-role >/dev/null 2>&1; then
-              echo "Role exists - will use existing"
-              terraform apply --auto-approve -var="use_existing_iam=true"
-          else
-              echo "Role doesn't exist - will create new"
-              terraform apply --auto-approve -var="use_existing_iam=false"
-          fi
+          terraform apply --auto-approve
         working-directory: infra_terraform
 
       - name: Git Config
