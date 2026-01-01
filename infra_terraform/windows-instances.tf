@@ -212,7 +212,7 @@ resource "aws_instance" "windows_client_2016" {
     </powershell>
     EOF
   
-  depends_on = var.create_windows_instances ? [aws_instance.wsus_server_2019[0], aws_route53_record.wsus[0]] : [data.aws_instance.existing_wsus[0]]
+  depends_on = [aws_instance.wsus_server_2019, aws_route53_record.wsus]
   
   tags = {
     Name = "${var.project_tag}-client-2016"
