@@ -41,14 +41,14 @@ jobs:
           terraform fmt
           terraform validate
           terraform plan
-          echo "Checking ec2_ssm_profile..."
-          if aws iam get-instance-profile --instance-profile-name ec2_ssm_profile >/dev/null 2>&1; then
-              ROLES=$(aws iam get-instance-profile --instance-profile-name ec2_ssm_profile --query 'InstanceProfile.Roles[*].RoleName' --output text)
+          echo "Checking learn-tf-aws-vpc-ssm-profile..."
+          if aws iam get-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile >/dev/null 2>&1; then
+              ROLES=$(aws iam get-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile --query 'InstanceProfile.Roles[*].RoleName' --output text)
               for ROLE in $ROLES; do
-                  aws iam remove-role-from-instance-profile --instance-profile-name ec2_ssm_profile --role-name "$ROLE"
+                  aws iam remove-role-from-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile --role-name "$ROLE"
               done
               sleep 2
-              aws iam delete-instance-profile --instance-profile-name ec2_ssm_profile
+              aws iam delete-instance-profile --instance-profile-name learn-tf-aws-vpc-ssm-profile
           else
               echo "Profile doesn't exist"
           fi       
@@ -90,13 +90,13 @@ jobs:
         if: failure()
         run: |
           terraform destroy -auto-approve -input=false
-          echo "Check if AmazonSSMManagedInstanceRole exist"
-          if [ -n "$(aws iam list-roles --query 'Roles[*].RoleName' | grep AmazonSSMManagedInstanceRole | sed 's/[",]//g')" ]; then
-            aws iam delete-role --role-name $(aws iam list-roles --query 'Roles[*].RoleName' | grep AmazonSSMManagedInstanceRole | sed 's/[",]//g')
+          echo "Check if learn-tf-aws-vpc-ssm-role exist"
+          if [ -n "$(aws iam list-roles --query 'Roles[*].RoleName' | grep learn-tf-aws-vpc-ssm-role | sed 's/[",]//g')" ]; then
+            aws iam delete-role --role-name $(aws iam list-roles --query 'Roles[*].RoleName' | grep learn-tf-aws-vpc-ssm-role | sed 's/[",]//g')
           fi
-          echo "Check if AmazonSSMManagedInstanceProfile exist"
-          if [ -n "$(aws iam list-instance-profiles --query InstanceProfiles[*].InstanceProfileName | grep AmazonSSMManagedInstanceProfile | sed 's/[",]//g')" ]; then
-            aws iam delete-instance-profile --instance-profile-name $(aws iam list-instance-profiles --query InstanceProfiles[*].InstanceProfileName | grep AmazonSSMManagedInstanceProfile | sed 's/[",]//g')
+          echo "Check if learn-tf-aws-vpc-ssm-profile exist"
+          if [ -n "$(aws iam list-instance-profiles --query InstanceProfiles[*].InstanceProfileName | grep learn-tf-aws-vpc-ssm-profile | sed 's/[",]//g')" ]; then
+            aws iam delete-instance-profile --instance-profile-name $(aws iam list-instance-profiles --query InstanceProfiles[*].InstanceProfileName | grep learn-tf-aws-vpc-ssm-profile | sed 's/[",]//g')
           fi
         working-directory: infra_terraform          
           
