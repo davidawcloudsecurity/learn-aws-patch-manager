@@ -1,5 +1,10 @@
 # learn-aws-patch-manager
 
+### How to import KB into WSUS with guild and manual downloaded msu
+```
+https://rdr-it.com/en/wsus-manually-import-an-update-from-the-microsoft-update-catalog/
+```
+
 ### How to read windowsupdatelog with guild
 ```
 https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbols-windows-update
