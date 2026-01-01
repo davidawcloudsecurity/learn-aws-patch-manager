@@ -105,19 +105,6 @@ resource "aws_security_group" "windows_sg" {
   }
 }
 
-# Data source for existing security group
-data "aws_subnets" "existing_public" {
-  filter {
-    name   = "vpc-id"
-    values = [can(data.aws_vpc.existing_vpc.id) ? data.aws_vpc.existing_vpc.id : aws_vpc.demo_main_vpc[0].id]
-  }
-  
-  filter {
-    name   = "tag:Name"
-    values = ["${var.project_tag}-pb-sub-01"]
-  }
-}
-
 # Windows Server 2019 - WSUS Server
 resource "aws_instance" "wsus_server_2019" {
   count                       = var.create_windows_instances ? 1 : 0
