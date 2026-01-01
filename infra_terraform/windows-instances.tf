@@ -63,7 +63,7 @@ resource "aws_iam_instance_profile" "ssm_profile" {
 
 # Data sources to check for existing VPC resources
 data "aws_vpc" "existing_vpc" {
-  count = 1
+  count = var.create_vpc ? 0 : 1
   filter {
     name   = "tag:Name"
     values = [var.project_tag]
@@ -71,17 +71,17 @@ data "aws_vpc" "existing_vpc" {
 }
 
 data "aws_security_group" "existing_windows_sg" {
-  count  = 1
+  count  = var.create_windows_instances ? 0 : 1
   name   = "windows-instances-sg"
-  vpc_id = length(data.aws_vpc.existing_vpc) > 0 ? data.aws_vpc.existing_vpc[0].id : null
+  vpc_id = var.create_vpc ? null : data.aws_vpc.existing_vpc[0].id
 }
 
 # Security Group for Windows instances
 resource "aws_security_group" "windows_sg" {
-  count       = var.create_windows_instances && !can(data.aws_security_group.existing_windows_sg[0].id) ? 1 : 0
+  count       = var.create_windows_instances && var.create_vpc ? 1 : 0
   name        = "windows-instances-sg"
   description = "Security group for Windows EC2 instances"
-  vpc_id      = can(data.aws_vpc.existing_vpc[0].id) ? data.aws_vpc.existing_vpc[0].id : aws_vpc.demo_main_vpc[0].id
+  vpc_id      = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : data.aws_vpc.existing_vpc[0].id
   
   ingress {
     from_port   = 3389
@@ -114,8 +114,8 @@ resource "aws_instance" "wsus_server_2019" {
   count                       = var.create_windows_instances ? 1 : 0
   ami                         = data.aws_ami.windows_2019.id
   instance_type              = "t3.medium"
-  subnet_id                  = can(aws_subnet.public_subnet_01[0].id) ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
-  vpc_security_group_ids     = can(data.aws_security_group.existing_windows_sg[0].id) ? [data.aws_security_group.existing_windows_sg[0].id] : [aws_security_group.windows_sg[0].id]
+  subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
+  vpc_security_group_ids     = var.create_vpc ? [aws_security_group.windows_sg[0].id] : [data.aws_security_group.existing_windows_sg[0].id]
   associate_public_ip_address = true
   iam_instance_profile       = can(data.aws_iam_instance_profile.existing_ssm_profile[0].arn) ? data.aws_iam_instance_profile.existing_ssm_profile[0].name : aws_iam_instance_profile.ssm_profile[0].name
   
@@ -190,8 +190,8 @@ resource "aws_instance" "windows_client_2016" {
   count                       = var.create_windows_instances ? 1 : 0
   ami                        = "ami-0d8940f0876d45867" # "ami-02f5c360d1593d538" windows 2016
   instance_type              = "t3.small"
-  subnet_id                  = can(aws_subnet.public_subnet_01[0].id) ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
-  vpc_security_group_ids     = can(data.aws_security_group.existing_windows_sg[0].id) ? [data.aws_security_group.existing_windows_sg[0].id] : [aws_security_group.windows_sg[0].id]
+  subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
+  vpc_security_group_ids     = var.create_vpc ? [aws_security_group.windows_sg[0].id] : [data.aws_security_group.existing_windows_sg[0].id]
   associate_public_ip_address = true
   iam_instance_profile       = can(data.aws_iam_instance_profile.existing_ssm_profile[0].arn) ? data.aws_iam_instance_profile.existing_ssm_profile[0].name : aws_iam_instance_profile.ssm_profile[0].name
   
