@@ -139,8 +139,13 @@ resource "aws_instance" "wsus_server_2019" {
     # Create WSUS content directory
     New-Item -Path "C:\WSUS" -ItemType Directory -Force
     
-    # Configure WSUS
-    & "C:\Program Files\Update Services\Tools\wsusutil.exe" postinstall CONTENT_DIR=C:\WSUS SQL_INSTANCE_NAME="MICROSOFT##WID"
+    # Configure WSUS using PowerShell cmdlets instead of wsusutil
+    Import-Module UpdateServices
+    
+    # Initialize WSUS configuration
+    $wsusConfig = Get-WsusServer
+    $wsusConfig.Configuration.SetContentPath("C:\WSUS")
+    $wsusConfig.Configuration.Save()
     
     # Start WSUS services
     Start-Service WsusService
