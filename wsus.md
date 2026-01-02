@@ -36,6 +36,8 @@ try {
 } catch {
     Write-Host "Import failed: $($_.Exception.Message)"
 }
+
+# (Get-WsusServer).SearchUpdate('KbNumber') to check if the KB exist
 ```
 #
 ### Sync WSUS
