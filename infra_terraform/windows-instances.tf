@@ -69,7 +69,7 @@ data "aws_security_group" "existing_windows_sg" {
 resource "aws_security_group" "windows_sg" {
   name        = "windows-instances-sg"
   description = "Security group for Windows EC2 instances"
-  vpc_id      = aws_vpc.demo_main_vpc.id
+  vpc_id      = aws_vpc.demo_main_vpc[0].id
   
   ingress {
     from_port   = 3389
@@ -101,7 +101,7 @@ resource "aws_security_group" "windows_sg" {
 resource "aws_instance" "wsus_server_2019" {
   ami                         = data.aws_ami.windows_2019.id
   instance_type              = "t3.medium"
-  subnet_id                  = aws_subnet.public_subnet_01.id
+  subnet_id                  = aws_subnet.public_subnet_01[0].id
   vpc_security_group_ids     = [aws_security_group.windows_sg.id]
   associate_public_ip_address = true
   iam_instance_profile       = local.ssm_instance_profile
@@ -164,7 +164,7 @@ resource "aws_route53_record" "wsus" {
 resource "aws_instance" "windows_client_2016" {
   ami                        = "ami-0d8940f0876d45867" # "ami-02f5c360d1593d538" windows 2016
   instance_type              = "t3.small"
-  subnet_id                  = aws_subnet.public_subnet_01.id
+  subnet_id                  = aws_subnet.public_subnet_01[0].id
   vpc_security_group_ids     = [aws_security_group.windows_sg.id]
   associate_public_ip_address = true
   iam_instance_profile       = local.ssm_instance_profile
