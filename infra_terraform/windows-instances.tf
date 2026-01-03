@@ -54,7 +54,6 @@ locals {
 
 # Data sources to check for existing VPC resources
 data "aws_vpc" "existing_vpc" {
-  count = var.create_vpc ? 0 : 1
   filter {
     name   = "tag:Name"
     values = [var.project_tag]
@@ -63,14 +62,14 @@ data "aws_vpc" "existing_vpc" {
 
 data "aws_security_group" "existing_windows_sg" {
   name   = "windows-instances-sg"
-  vpc_id = var.create_vpc ? null : (length(data.aws_vpc.existing_vpc) > 0 ? data.aws_vpc.existing_vpc[0].id : null)
+  vpc_id = data.aws_vpc.existing_vpc.id
 }
 
 # Security Group for Windows instances
 resource "aws_security_group" "windows_sg" {
   name        = "windows-instances-sg"
   description = "Security group for Windows EC2 instances"
-  vpc_id      = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : (length(data.aws_vpc.existing_vpc) > 0 ? data.aws_vpc.existing_vpc[0].id : null)
+  vpc_id      = aws_vpc.demo_main_vpc.id
   
   ingress {
     from_port   = 3389
@@ -102,8 +101,8 @@ resource "aws_security_group" "windows_sg" {
 resource "aws_instance" "wsus_server_2019" {
   ami                         = data.aws_ami.windows_2019.id
   instance_type              = "t3.medium"
-  subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
-  vpc_security_group_ids     = var.create_vpc ? [aws_security_group.windows_sg.id] : [data.aws_security_group.existing_windows_sg.id]
+  subnet_id                  = aws_subnet.public_subnet_01.id
+  vpc_security_group_ids     = [aws_security_group.windows_sg.id]
   associate_public_ip_address = true
   iam_instance_profile       = local.ssm_instance_profile
   
@@ -154,25 +153,19 @@ resource "aws_instance" "wsus_server_2019" {
 
 # DNS record for WSUS server
 resource "aws_route53_record" "wsus" {
-  zone_id = can(aws_route53_zone.private[0].zone_id) ? aws_route53_zone.private[0].zone_id : data.aws_route53_zone.existing_private[0].zone_id
+  zone_id = aws_route53_zone.private.zone_id
   name    = "wsus.davidawcloudsecurity.com"
   type    = "A"
   ttl     = 300
   records = [aws_instance.wsus_server_2019.private_ip]
 }
 
-# Data sources for existing resources
-data "aws_route53_zone" "existing_private" {
-  name         = "davidawcloudsecurity.com"
-  private_zone = true
-}
-
 # Windows Server 2016 - Client
 resource "aws_instance" "windows_client_2016" {
   ami                        = "ami-0d8940f0876d45867" # "ami-02f5c360d1593d538" windows 2016
   instance_type              = "t3.small"
-  subnet_id                  = var.create_vpc ? aws_subnet.public_subnet_01[0].id : data.aws_subnets.existing_public[0].ids[0]
-  vpc_security_group_ids     = var.create_vpc ? [aws_security_group.windows_sg.id] : [data.aws_security_group.existing_windows_sg.id]
+  subnet_id                  = aws_subnet.public_subnet_01.id
+  vpc_security_group_ids     = [aws_security_group.windows_sg.id]
   associate_public_ip_address = true
   iam_instance_profile       = local.ssm_instance_profile
   
