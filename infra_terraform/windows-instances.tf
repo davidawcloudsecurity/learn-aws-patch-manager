@@ -63,7 +63,11 @@ resource "aws_iam_instance_profile" "ssm_profile" {
 
 # Use whichever IAM profile exists
 locals {
-  ssm_instance_profile = var.use_existing_iam ? data.aws_iam_instance_profile.existing_ssm_profile[0].name : aws_iam_instance_profile.ssm_profile[0].name
+  ssm_instance_profile = var.use_existing_iam ? (
+    length(data.aws_iam_instance_profile.existing_ssm_profile) > 0 ? data.aws_iam_instance_profile.existing_ssm_profile[0].name : null
+  ) : (
+    length(aws_iam_instance_profile.ssm_profile) > 0 ? aws_iam_instance_profile.ssm_profile[0].name : null
+  )
 }
 
 # Data sources to check for existing VPC resources
