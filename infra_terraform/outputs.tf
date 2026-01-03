@@ -1,13 +1,13 @@
 output "aws_vpc_main" {
-  value = aws_vpc.demo_main_vpc.id
+  value = aws_vpc.demo_main_vpc[0].id
 }
 
 output "aws_subnet_public" {
-  value = aws_subnet.public_subnet_01.id
+  value = aws_subnet.public_subnet_01[0].id
 }
 
 output "aws_subnet_private" {
-  value = aws_subnet.private_subnet_01.id
+  value = aws_subnet.private_subnet_01[0].id
 }
 
 output "wsus_server_public_ip" {
