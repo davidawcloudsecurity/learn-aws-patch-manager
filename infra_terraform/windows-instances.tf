@@ -153,7 +153,7 @@ resource "aws_instance" "wsus_server_2019" {
 
 # DNS record for WSUS server
 resource "aws_route53_record" "wsus" {
-  zone_id = aws_route53_zone.private.zone_id
+  zone_id = aws_route53_zone.private[0].zone_id
   name    = "wsus.davidawcloudsecurity.com"
   type    = "A"
   ttl     = 300
