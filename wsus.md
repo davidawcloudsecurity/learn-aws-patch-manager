@@ -3,7 +3,32 @@
 Get-Content "C:\Program Files\Update Services\LogFiles\SoftwareDistribution.log" -Wait -Tail 10
 Get-Content "C:\Program Files\Update Services\LogFiles\Change.log" -Wait -Tail 10
 ```
+### Fix the client reporting to WSUS
+```
+# Stop Windows Update service
+Stop-Service wuauserv -Force
 
+# Delete the SusClientId (forces new registration)
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Name "SusClientId" -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Name "SusClientIDValidation" -ErrorAction SilentlyContinue
+
+# Clear the entire WindowsUpdate key to force fresh registration
+Remove-Item "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Recurse -Force -ErrorAction SilentlyContinue
+
+# Delete the cached update data
+Remove-Item "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+# Start Windows Update service
+Start-Service wuauserv
+
+# Wait a moment
+Start-Sleep -Seconds 5
+
+# Force re-registration with WSUS
+(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Where-Object {($_.Categories|%{$_.Name}) -contains "Security Updates"} | Select-Object Title
+wuauclt /reportnow
+
+```
 ### Scripts to import manual download cab / KB into c:\wsus\wsuscontent
 ```
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
