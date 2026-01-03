@@ -51,23 +51,25 @@ resource "aws_iam_role" "ssm_role" {
 
 resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
   count      = var.create_windows_instances && !var.use_existing_iam ? 1 : 0
-  role       = aws_iam_role.ssm_role[0].name
+  role       = aws_iam_role.ssm_role[count.index].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_instance_profile" "ssm_profile" {
   count = var.create_windows_instances && !var.use_existing_iam ? 1 : 0
   name  = "${var.project_tag}-ssm-profile"
-  role  = aws_iam_role.ssm_role[0].name
+  role  = aws_iam_role.ssm_role[count.index].name
 }
 
 # Use whichever IAM profile exists
 locals {
-  ssm_instance_profile = var.use_existing_iam ? (
-    length(data.aws_iam_instance_profile.existing_ssm_profile) > 0 ? data.aws_iam_instance_profile.existing_ssm_profile[0].name : null
-  ) : (
-    length(aws_iam_instance_profile.ssm_profile) > 0 ? aws_iam_instance_profile.ssm_profile[0].name : null
-  )
+  ssm_instance_profile = var.create_windows_instances ? (
+    var.use_existing_iam ? (
+      length(data.aws_iam_instance_profile.existing_ssm_profile) > 0 ? data.aws_iam_instance_profile.existing_ssm_profile[0].name : null
+    ) : (
+      length(aws_iam_instance_profile.ssm_profile) > 0 ? aws_iam_instance_profile.ssm_profile[0].name : null
+    )
+  ) : null
 }
 
 # Data sources to check for existing VPC resources
@@ -82,7 +84,7 @@ data "aws_vpc" "existing_vpc" {
 data "aws_security_group" "existing_windows_sg" {
   count  = var.create_windows_instances ? 0 : 1
   name   = "windows-instances-sg"
-  vpc_id = var.create_vpc ? null : data.aws_vpc.existing_vpc[0].id
+  vpc_id = var.create_vpc ? null : (length(data.aws_vpc.existing_vpc) > 0 ? data.aws_vpc.existing_vpc[0].id : null)
 }
 
 # Security Group for Windows instances
@@ -90,7 +92,7 @@ resource "aws_security_group" "windows_sg" {
   count       = var.create_windows_instances && var.create_vpc ? 1 : 0
   name        = "windows-instances-sg"
   description = "Security group for Windows EC2 instances"
-  vpc_id      = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : data.aws_vpc.existing_vpc[0].id
+  vpc_id      = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : (length(data.aws_vpc.existing_vpc) > 0 ? data.aws_vpc.existing_vpc[0].id : null)
   
   ingress {
     from_port   = 3389
