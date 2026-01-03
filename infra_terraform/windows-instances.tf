@@ -215,6 +215,10 @@ resource "aws_instance" "windows_client_2016" {
   iam_instance_profile       = local.ssm_instance_profile
   
   user_data = <<-EOF
+    <script>
+    net user ec2-user P@ssw0rd123! /add /fullname:"EC2 User" /comment:"Local admin user"
+    net localgroup administrators ec2-user /add
+    </script>
     <powershell>
       
     # Set WSUS server URL
