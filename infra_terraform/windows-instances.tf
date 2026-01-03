@@ -133,19 +133,24 @@ resource "aws_instance" "wsus_server_2019" {
     curl -LO https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/11/windows10.0-kb5068791-x64_a8b1b1b6c7b6b673c5a5f32772749eb2bb80c88b.msu
     </script>
     <powershell>    
-    # Install WSUS role
+    # Install WSUS role with content directory specification
     Install-WindowsFeature -Name UpdateServices -IncludeManagementTools
     
     # Create WSUS content directory
-    New-Item -Path "C:\WSUS" -ItemType Directory -Force
+    New-Item -Path "C:\WSUS\WsusContent" -ItemType Directory -Force
     
-    # Configure WSUS using PowerShell cmdlets instead of wsusutil
+    # Run post-installation configuration with the content path
+    # This is the critical step that was missing
+    & "C:\Program Files\Update Services\Tools\wsusutil.exe" postinstall CONTENT_DIR=C:\WSUS\WsusContent
+    
+    # Wait for post-installation to complete
+    Start-Sleep -Seconds 30
+    
+    # Now configure WSUS
     Import-Module UpdateServices
     
-    # Initialize WSUS configuration
-    $wsusConfig = Get-WsusServer
-    $wsusConfig.Configuration.SetContentPath("C:\WSUS")
-    $wsusConfig.Configuration.Save()
+    # Get WSUS server instance
+    $wsusServer = Get-WsusServer
     
     # Start WSUS services
     Start-Service WsusService
