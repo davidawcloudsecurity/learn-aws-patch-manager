@@ -1,3 +1,9 @@
+### Logs to debug for wsus
+```
+Get-Content "C:\Program Files\Update Services\LogFiles\SoftwareDistribution.log" -Wait -Tail 10
+Get-Content "C:\Program Files\Update Services\LogFiles\Change.log" -Wait -Tail 10
+```
+
 ### Scripts to import manual download cab / KB into c:\wsus\wsuscontent
 ```
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
