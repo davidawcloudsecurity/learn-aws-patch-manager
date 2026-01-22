@@ -2,7 +2,7 @@
 variable "enable_rhel_instances" {
   description = "Enable RHEL instances deployment"
   type        = bool
-  default     = false
+default     = true
 }
 
 # Data source for RHEL 9 AMI
@@ -68,7 +68,7 @@ resource "aws_security_group" "rhel_sg" {
 # RHEL 9 instance
 resource "aws_instance" "rhel_9_server" {
   count                      = var.enable_rhel_instances ? 1 : 0
-  ami                        = data.aws_ami.rhel_9[0].id
+  ami                        = "ami-0d8d3b1122e36c000" # data.aws_ami.rhel_9[0].id
   instance_type              = "t3.small"
   subnet_id                  = aws_subnet.public_subnet_01[0].id
   vpc_security_group_ids     = [aws_security_group.rhel_sg[0].id]
