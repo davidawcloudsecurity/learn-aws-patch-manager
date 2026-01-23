@@ -4,6 +4,31 @@
 If you want December 2025 and earlier (but not January 2026):
 ```
 sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])'
+RHSA-2025:22660 Moderate/Sec.  systemd-udev-252-55.el9_7.7.x86_64               2025-12-03 10:38:39
+RHSA-2025:20945 Moderate/Sec.  vim-minimal-2:8.2.2637-23.el9_7.x86_64           2025-11-11 11:47:33
+```
+displays detailed information about a specific security advisory.
+```
+sudo dnf updateinfo info RHSA-2025:22660Updating Subscription Management repositories.Unable to read consumer identity
+
+This system is not registered with an entitlement server. You can use "rhc" or "subscription-manager" to register.
+
+Last metadata expiration check: 0:27:43 ago on Fri 23 Jan 2026 05:56:42 AM UTC.
+===============================================================================
+  Moderate: systemd security update
+===============================================================================
+  Update ID: RHSA-2025:22660
+       Type: security
+    Updated: 2025-12-03 10:38:39
+       Bugs: 2369242 - CVE-2025-4598 systemd-coredump: race condition that allows a local attacker to crash a SUID program and gainread access to the resulting core dump
+       CVEs: CVE-2025-4598
+Description: The systemd packages contain systemd, a system and service manager for Linux, compatible with the SysV and LSB init scripts. It provides aggressive parallelism capabilities, uses socket and D-Bus activation for starting services, offers on-demand starting of daemons, and keeps track of processes using Linux cgroups. In addition, it supports snapshotting and restoring of the system state, maintains mount and automount points, and implements an elaborate transactional dependency-based service control logic. It can also work as a drop-in replacement for sysvinit.
+           :
+           : Security Fix(es):
+           :
+           : * systemd-coredump: race condition that allows a local attacker to crash a SUID program and gain read access to the resulting core dump (CVE-2025-4598)
+           :
+           : For more details about the security issue(s), including the impact, a CVSS score, acknowledgments, and other related information, refer to the CVE page(s) listed in the References section.
 ```
 
 ### Need to check what this does
