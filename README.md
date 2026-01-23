@@ -1,5 +1,11 @@
 # learn-aws-patch-manager
 
+### How to patch RHEL
+If you want December 2025 and earlier (but not January 2026):
+```
+sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])'
+```
+
 ### Need to check what this does
 ```
 Function Force-WSUSCheckin($Computer)
