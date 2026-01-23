@@ -7,7 +7,7 @@ sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])'
 RHSA-2025:22660 Moderate/Sec.  systemd-udev-252-55.el9_7.7.x86_64               2025-12-03 10:38:39
 RHSA-2025:20945 Moderate/Sec.  vim-minimal-2:8.2.2637-23.el9_7.x86_64           2025-11-11 11:47:33
 ```
-displays detailed information about a specific security advisory.
+displays detailed information about a specific security advisory. It only pull if its not installed.
 ```
 sudo dnf updateinfo info RHSA-2025:22660
 Updating Subscription Management repositories.Unable to read consumer identity
@@ -59,6 +59,14 @@ rpm -qa --last | grep "Jan 2026"
 ### All packages from 2025
 ```
 rpm -qa --last | grep "2025"
+```
+### Expand previous packages
+where number is the index
+```
+dnf history | grep 2026
+   226 | update --advisory=RHSA-2025:22388,RHSA-2025:22801,RHSA-2025:23382,RHSA-2025:23383,RHSA-2025:23481,RHSA-2025:23530, -y | 2026-01-23 21:02 | C, E, I, U     |   22 E<
+
+dnf history info 226
 ```
 Function Force-WSUSCheckin($Computer)
 {
