@@ -43,6 +43,22 @@ How to install with cutoff date
 ```
 sudo dnf update --advisory=$(cat advisories.txt | tr '\n' ',') --assumeno
 ```
+### How to check what was installed
+```
+sudo dnf updateinfo list --installed | grep "2026-"
+```
+### All packages installed today (2026-01-23)
+```
+rpm -qa --last | grep "Thu 23 Jan 2026"
+```
+### All packages installed in January 2026
+```
+rpm -qa --last | grep "Jan 2026"
+```
+### All packages from 2025
+```
+rpm -qa --last | grep "2025"
+```
 Function Force-WSUSCheckin($Computer)
 {
    Invoke-Command -computername $Computer -scriptblock { Start-Service wuauserv -Verbose }
