@@ -9,7 +9,8 @@ RHSA-2025:20945 Moderate/Sec.  vim-minimal-2:8.2.2637-23.el9_7.x86_64           
 ```
 displays detailed information about a specific security advisory.
 ```
-sudo dnf updateinfo info RHSA-2025:22660Updating Subscription Management repositories.Unable to read consumer identity
+sudo dnf updateinfo info RHSA-2025:22660
+Updating Subscription Management repositories.Unable to read consumer identity
 
 This system is not registered with an entitlement server. You can use "rhc" or "subscription-manager" to register.
 
