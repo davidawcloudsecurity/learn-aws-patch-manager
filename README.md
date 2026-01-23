@@ -33,6 +33,8 @@ Description: The systemd packages contain systemd, a system and service manager 
 
 ### Need to check what this does
 How to get updates rhel with cutoff date like dec 2025. Get the list of year or month
+
+You're NOT missing any security advisories themselves - sort -u correctly gives you the unique list of security bulletins.
 ```
 sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])' | cut -d' ' -f1 | sort -u > advisories.txt
 RHSA-2025:23483
