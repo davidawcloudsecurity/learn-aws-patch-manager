@@ -1,6 +1,6 @@
 # learn-aws-patch-manager
 
-### How to patch RHEL
+### How to patch RHEL with cutoff date
 If you want December 2025 and earlier (but not January 2026):
 ```
 sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])'
@@ -32,6 +32,15 @@ Description: The systemd packages contain systemd, a system and service manager 
 ```
 
 ### Need to check what this does
+```
+How to get updates rhel with cutoff date like dec 2025. Get the list of year or month
+```
+sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])' | cut -d' ' -f1 | sort -u > advisories.txt
+RHSA-2025:23483
+```
+How to install with cutoff date
+```
+sudo dnf update --advisory=$(cat advisories.txt | tr '\n' ',') --assumeno
 ```
 Function Force-WSUSCheckin($Computer)
 {
