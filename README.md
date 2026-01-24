@@ -17,6 +17,8 @@ OR
 sudo repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' # don't show 2026
 ```
 OR
+
+sudo dnf updateinfo list available -v | grep 'A-' | wc -l # shows same as patch mgr
 ```
 sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])'
 RHSA-2025:22660 Moderate/Sec.  systemd-udev-252-55.el9_7.7.x86_64               2025-12-03 10:38:39
