@@ -70,7 +70,7 @@ sudo dnf update --advisory=$(cat advisories.txt | tr '\n' ',') --assumeno
 ```
 ### How to check what was installed
 ```
-sudo dnf updateinfo list --installed | grep "2026-"
+sudo dnf updateinfo list --installed -v | grep "2026-"
 ```
 ### All packages installed today (2026-01-23)
 ```
