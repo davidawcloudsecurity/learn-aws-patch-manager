@@ -2,7 +2,7 @@
 
 ### Secret
 ```
-repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | wc -l" && repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | xargs dnf update -y
+repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | wc -l && repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | xargs dnf update -y
 OR
 dnf updateinfo list available -v | grep 'A-' | grep -v '2026-' | wc -l && dnf updateinfo list available -v | grep 'A-' | grep -v '2026-' | cut -d' ' -f1 | sort -u | xargs dnf update -y
 ```
