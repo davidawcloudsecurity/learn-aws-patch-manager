@@ -3,6 +3,19 @@
 ### How to patch RHEL with cutoff date
 If you want December 2025 and earlier (but not January 2026):
 ```
+sudo repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}'
+Last metadata expiration check: 0:08:10 ago on Sat 24 Jan 2026 12:45:58 AM UTC.
+gnupg2-2.3.3-5.el9_7.x86_64 2026-01-13 14:30
+podman-5.6.0-11.el9_7.x86_64 2026-01-08 09:50
+podman-5.6.0-12.el9_7.x86_64 2026-01-19 10:46
+python3-perf-5.14.0-611.20.1.el9_7.x86_64 2025-12-20 09:47
+python3-perf-5.14.0-611.24.1.el9_7.x86_64 2026-01-10 09:48
+tar-1.34-9.el9_7.x86_64 2025-12-19 15:58```
+OR
+sudo repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep 2025-12 | xargs sudo dnf update -y
+```
+OR
+```
 sudo dnf updateinfo list security available -v | grep -E '2025-(0[1-9]|1[0-2])'
 RHSA-2025:22660 Moderate/Sec.  systemd-udev-252-55.el9_7.7.x86_64               2025-12-03 10:38:39
 RHSA-2025:20945 Moderate/Sec.  vim-minimal-2:8.2.2637-23.el9_7.x86_64           2025-11-11 11:47:33
