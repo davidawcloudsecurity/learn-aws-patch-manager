@@ -13,6 +13,8 @@ python3-perf-5.14.0-611.24.1.el9_7.x86_64 2026-01-10 09:48
 tar-1.34-9.el9_7.x86_64 2025-12-19 15:58```
 OR
 sudo repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep 2025-12 | xargs sudo dnf update -y
+OR
+sudo repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' # don't show 2026
 ```
 OR
 ```
