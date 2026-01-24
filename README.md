@@ -55,7 +55,14 @@ Description: The systemd packages contain systemd, a system and service manager 
            :
            : For more details about the security issue(s), including the impact, a CVSS score, acknowledgments, and other related information, refer to the CVE page(s) listed in the References section.
 ```
-
+### How to reveal which advisory was installed
+```
+rpm -qa --last | grep 2026 | head -2 | awk '{print $1}' | \
+while read pkg; do
+  ADVISORY=$(sudo dnf updateinfo list installed -v 2>/dev/null | grep "$pkg" | grep -o 'RH[A-Z][A-Z]*-[0-9]\+:[0-9]\+' | head -1)
+  [ -n "$ADVISORY" ] && echo "$ADVISORY"
+done
+```
 ### Need to check what this does
 How to get updates rhel with cutoff date like dec 2025. Get the list of year or month
 
