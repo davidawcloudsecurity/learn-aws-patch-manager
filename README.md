@@ -4,8 +4,7 @@
 ```
 repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | wc -l && repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | xargs dnf update -y
 OR
-dnf updateinfo list available -v | grep 'A-' | grep -v '2026-' | wc -l && dnf updateinfo list available -v | grep 'A-' | grep -v '2026-' | cut -d' ' -f1 | sort -u | xargs dnf update -y
-dnf update --advisory=$(sudo dnf updateinfo list security available -v  | grep 'A-' | grep -v '2026-' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y
+dnf update --advisory=$(sudo dnf updateinfo list security available -v  | grep 'A-' | grep -v '2026-' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y; needs-restarting -r || reboot now
 ```
 
 ### How to patch RHEL with cutoff date
