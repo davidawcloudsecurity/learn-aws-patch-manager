@@ -101,6 +101,7 @@ dnf history | grep 2026
 dnf history info 226
 sudo dnf history undo 4
 ```
+```
 Function Force-WSUSCheckin($Computer)
 {
    Invoke-Command -computername $Computer -scriptblock { Start-Service wuauserv -Verbose }
