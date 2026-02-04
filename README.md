@@ -1,5 +1,5 @@
 # learn-aws-patch-manager
-
+resource - https://docs.oracle.com/en-us/iaas/oracle-linux/oci/security-updates-using-dnf.htm
 ### Secret
 ```
 repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | wc -l && repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | xargs dnf update -y
