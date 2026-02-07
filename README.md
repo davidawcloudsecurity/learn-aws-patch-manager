@@ -76,7 +76,6 @@ RHSA-2025:23483
 How to install with cutoff date
 ```
 sudo dnf update --advisory=$(cat advisories.txt | tr '\n' ',') --assumeno
-sudo dnf update --advisory=$(cat advisories.txt | tr '\n' ',') --dry-run
 ```
 ### How to check what was installed
 ```
