@@ -4,8 +4,8 @@ resource - https://docs.oracle.com/en-us/iaas/oracle-linux/oci/security-updates-
 ```
 repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | wc -l && repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | xargs dnf update -y
 OR
-dnf update --advisory=$(sudo dnf updateinfo list available -v  | grep 'A-' | grep -v '2026-' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y; needs-restarting -r || reboot now # latest version
-dnf upgrade-minimal --advisory=$(sudo dnf updateinfo list available -v  | grep 'A-' | grep -v '2026-02' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y; needs-restarting -r || reboot now # last version
+dnf update --advisory=$(dnf updateinfo list available -v  | grep 'A-' | grep -v '2026-' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y; needs-restarting -r || reboot now # latest version
+dnf upgrade-minimal --advisory=$(dnf updateinfo list available -v  | grep 'A-' | grep -v '2026-02' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y; needs-restarting -r || reboot now # last version
 RHBA-2026:0859 bugfix cloud-init-23.4-7.el8_10.11.noarch 2026-01-20 22:20:56
 ```
 
@@ -101,7 +101,10 @@ dnf history | grep 2026
    226 | update --advisory=RHSA-2025:22388,RHSA-2025:22801,RHSA-2025:23382,RHSA-2025:23383,RHSA-2025:23481,RHSA-2025:23530, -y | 2026-01-23 21:02 | C, E, I, U     |   22 E<
 
 dnf history info 226
-sudo dnf history undo 4
+```
+undo installation
+```
+dnf history undo 4
 ```
 ```
 Function Force-WSUSCheckin($Computer)
