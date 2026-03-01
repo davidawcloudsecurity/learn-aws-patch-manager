@@ -151,23 +151,33 @@ def monitor_agents(server):
             print(f"Monitor error: {e}")
             time.sleep(30)
 
-def get_last_logs(lines=50):
+def get_last_logs(lines=100):
     """Get last N lines from both SSM logs and error logs"""
     logs = {}
     
-    # SSM agent main log
+    # SSM agent main log - get more recent entries
     try:
         result = os.popen(f'tail -n {lines} /var/log/amazon/ssm/amazon-ssm-agent.log 2>/dev/null').read()
         logs['ssm_agent_log'] = result.split('\n')
     except:
         logs['ssm_agent_log'] = ['SSM agent log not found']
     
-    # SSM agent error log
+    # SSM agent error log - get recent errors
     try:
-        result = os.popen(f'tail -n {lines} /var/log/amazon/ssm/errors.log 2>/dev/null').read()
-        logs['ssm_error_log'] = result.split('\n')
+        result = os.popen(f'sudo tail -n {lines} /var/log/amazon/ssm/errors.log 2>/dev/null').read()
+        if result.strip():
+            logs['ssm_error_log'] = result.split('\n')
+        else:
+            logs['ssm_error_log'] = ['SSM error log is empty']
     except:
-        logs['ssm_error_log'] = ['SSM error log not found']
+        logs['ssm_error_log'] = ['SSM error log access failed']
+    
+    # Get logs from last 10 minutes using journalctl
+    try:
+        result = os.popen('journalctl -u snap.amazon-ssm-agent.amazon-ssm-agent.service --since "10 minutes ago" --no-pager 2>/dev/null').read()
+        logs['recent_systemd_log'] = result.split('\n')
+    except:
+        logs['recent_systemd_log'] = ['Recent systemd log not found']
     
     # CloudWatch agent log
     try:
@@ -175,13 +185,6 @@ def get_last_logs(lines=50):
         logs['cloudwatch_log'] = result.split('\n')
     except:
         logs['cloudwatch_log'] = ['CloudWatch log not found']
-    
-    # System log for agent-related entries
-    try:
-        result = os.popen(f'journalctl -n {lines} -u snap.amazon-ssm-agent.amazon-ssm-agent.service --no-pager 2>/dev/null').read()
-        logs['systemd_log'] = result.split('\n')
-    except:
-        logs['systemd_log'] = ['Systemd log not found']
     
     return logs
 
