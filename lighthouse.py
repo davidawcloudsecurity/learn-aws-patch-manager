@@ -152,12 +152,38 @@ def monitor_agents(server):
             time.sleep(30)
 
 def get_last_logs(lines=50):
-    """Get last N lines from SSM log"""
+    """Get last N lines from both SSM logs and error logs"""
+    logs = {}
+    
+    # SSM agent main log
     try:
         result = os.popen(f'tail -n {lines} /var/log/amazon/ssm/amazon-ssm-agent.log 2>/dev/null').read()
-        return result.split('\n')
+        logs['ssm_agent_log'] = result.split('\n')
     except:
-        return ['Log file not found']
+        logs['ssm_agent_log'] = ['SSM agent log not found']
+    
+    # SSM agent error log
+    try:
+        result = os.popen(f'tail -n {lines} /var/log/amazon/ssm/errors.log 2>/dev/null').read()
+        logs['ssm_error_log'] = result.split('\n')
+    except:
+        logs['ssm_error_log'] = ['SSM error log not found']
+    
+    # CloudWatch agent log
+    try:
+        result = os.popen(f'tail -n {lines} /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log 2>/dev/null').read()
+        logs['cloudwatch_log'] = result.split('\n')
+    except:
+        logs['cloudwatch_log'] = ['CloudWatch log not found']
+    
+    # System log for agent-related entries
+    try:
+        result = os.popen(f'journalctl -n {lines} -u snap.amazon-ssm-agent.amazon-ssm-agent.service --no-pager 2>/dev/null').read()
+        logs['systemd_log'] = result.split('\n')
+    except:
+        logs['systemd_log'] = ['Systemd log not found']
+    
+    return logs
 
 def run_lighthouse():
     """Start the externally visible lighthouse"""
