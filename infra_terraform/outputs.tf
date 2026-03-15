@@ -44,15 +44,15 @@ output "tgw_outbound_route_table_id" {
   description = "TGW outbound default route table ID"
 }
 
-output "rhel_instance_ips" {
-  value       = var.enable_rhel_instances ? aws_instance.rhel_9_server[*].private_ip : null
-  description = "RHEL instance private IPs"
+output "rhel_instance_private_ip" {
+  value       = var.enable_rhel_instances ? aws_instance.rhel_9_server[0].private_ip : null
+  description = "RHEL instance private IP"
 }
 
 output "wsus_server_public_ip" {
-  value = var.create_windows_instances ? aws_instance.wsus_server_2019[*].public_ip : null
+  value = var.create_windows_instances ? aws_instance.wsus_server_2019[0].public_ip : null
 }
 
 output "wsus_server_private_ip" {
-  value = var.create_windows_instances ? aws_instance.wsus_server_2019[*].private_ip : null
+  value = var.create_windows_instances ? aws_instance.wsus_server_2019[0].private_ip : null
 }

@@ -80,12 +80,12 @@ resource "aws_security_group" "windows_sg" {
   }
 }
 
-# Windows Server 2019 instances (1 per AZ for HA, matching RHEL AZs)
+# Windows Server 2019 - WSUS Server
 resource "aws_instance" "wsus_server_2019" {
-  count                      = var.create_windows_instances ? 3 : 0
+  count                      = var.create_windows_instances ? 1 : 0
   ami                        = data.aws_ami.windows_2019[0].id
   instance_type              = "t3.medium"
-  subnet_id                  = aws_subnet.windows_public_subnet[count.index].id
+  subnet_id                  = aws_subnet.windows_public_subnet[0].id
   vpc_security_group_ids     = [aws_security_group.windows_sg[0].id]
   associate_public_ip_address = true
   iam_instance_profile       = local.ssm_instance_profile
@@ -129,21 +129,21 @@ resource "aws_instance" "wsus_server_2019" {
     EOF
   
   tags = {
-    Name      = "${var.project_tag}-wsus-2019-${count.index + 1}"
+    Name      = "${var.project_tag}-wsus-2019"
     Role      = "WSUS"
     OS        = "Windows Server 2019"
     PatchGroup = "Windows-Critical"
   }
 }
 
-# DNS records for WSUS servers (weighted for HA)
+# DNS record for WSUS server
 resource "aws_route53_record" "wsus" {
-  count   = var.create_windows_instances ? 3 : 0
+  count   = var.create_windows_instances ? 1 : 0
   zone_id = aws_route53_zone.private[0].zone_id
-  name    = "wsus${count.index > 0 ? "-${count.index + 1}" : ""}.davidawcloudsecurity.com"
+  name    = "wsus.davidawcloudsecurity.com"
   type    = "A"
   ttl     = 300
-  records = [aws_instance.wsus_server_2019[count.index].private_ip]
+  records = [aws_instance.wsus_server_2019[0].private_ip]
 }
 
 
