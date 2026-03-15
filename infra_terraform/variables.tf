@@ -16,6 +16,18 @@ variable "windows_vpc_cidr_block" {
   default     = "172.17.0.0/16"
 }
 
+variable "rhel_instance_subnet_cidr" {
+  description = "RHEL instance subnet CIDR for TGW routes"
+  type        = string
+  default     = "172.16.1.0/24"
+}
+
+variable "windows_instance_subnet_cidr" {
+  description = "Windows instance subnet CIDR for TGW routes"
+  type        = string
+  default     = "172.17.1.0/24"
+}
+
 variable "project_tag" {
   description = "Specifies the name tag."
   type        = string
