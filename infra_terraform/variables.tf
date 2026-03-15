@@ -16,6 +16,18 @@ variable "windows_vpc_cidr_block" {
   default     = "172.17.0.0/16"
 }
 
+variable "rhel_instance_subnet_cidr" {
+  description = "RHEL instance subnet CIDR for TGW routes"
+  type        = string
+  default     = "172.16.1.0/24"
+}
+
+variable "windows_instance_subnet_cidr" {
+  description = "Windows instance subnet CIDR for TGW routes"
+  type        = string
+  default     = "172.17.1.0/24"
+}
+
 variable "project_tag" {
   description = "Specifies the name tag."
   type        = string
@@ -25,31 +37,31 @@ variable "project_tag" {
 variable "public_subnet_cidrs" {
   type        = list(string)
   description = "Public Subnet CIDR values for VPC-1 (RHEL)"
-  default     = ["172.16.1.0/24"]
+  default     = ["172.16.1.0/24", "172.16.3.0/24", "172.16.5.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   type        = list(string)
   description = "Private Subnet CIDR values for VPC-1 (RHEL)"
-  default     = ["172.16.2.0/24"]
+  default     = ["172.16.2.0/24", "172.16.4.0/24", "172.16.6.0/24"]
 }
 
 variable "windows_vpc_public_subnet_cidrs" {
   type        = list(string)
   description = "Public Subnet CIDR values for VPC-2 (Windows)"
-  default     = ["172.17.1.0/24"]
+  default     = ["172.17.1.0/24", "172.17.3.0/24", "172.17.5.0/24"]
 }
 
 variable "windows_vpc_private_subnet_cidrs" {
   type        = list(string)
   description = "Private Subnet CIDR values for VPC-2 (Windows)"
-  default     = ["172.17.2.0/24"]
+  default     = ["172.17.2.0/24", "172.17.4.0/24", "172.17.6.0/24"]
 }
 
 variable "azs" {
   type        = list(string)
   description = "Availability Zones"
-  default     = ["us-east-1a"]
+  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
 variable "create_vpc" {
