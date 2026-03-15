@@ -35,13 +35,13 @@ output "tgw_outbound_id" {
 }
 
 output "tgw_inbound_route_table_id" {
-  value       = var.create_tgw ? aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id : null
-  description = "TGW inbound route table ID"
+  value       = var.create_tgw ? aws_ec2_transit_gateway.tgw_inbound[0].association_default_route_table_id : null
+  description = "TGW inbound default route table ID"
 }
 
 output "tgw_outbound_route_table_id" {
-  value       = var.create_tgw ? aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id : null
-  description = "TGW outbound route table ID"
+  value       = var.create_tgw ? aws_ec2_transit_gateway.tgw_outbound[0].association_default_route_table_id : null
+  description = "TGW outbound default route table ID"
 }
 
 output "rhel_instance_ips" {

@@ -189,72 +189,32 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_outbound_windows" {
   }
 }
 
-resource "aws_ec2_transit_gateway_route_table" "tgw_inbound_routes" {
-  count       = var.create_tgw ? 1 : 0
-  transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
-  tags = {
-    Name = "${var.project_tag}-inbound-routes"
-  }
-}
-
 resource "aws_ec2_transit_gateway_route" "tgw_inbound_rhel_to_windows" {
   count                   = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_inbound[0].association_default_route_table_id
   destination_cidr_block  = var.windows_vpc_cidr_block
   transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_windows[0].id
 }
 
 resource "aws_ec2_transit_gateway_route" "tgw_inbound_windows_to_rhel" {
   count                   = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_inbound[0].association_default_route_table_id
   destination_cidr_block  = var.main_cidr_block
   transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_rhel[0].id
 }
 
-resource "aws_ec2_transit_gateway_route_table_association" "tgw_inbound_rhel_assoc" {
-  count                         = var.create_tgw ? 1 : 0
-  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_rhel[0].id
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
-}
-
-resource "aws_ec2_transit_gateway_route_table_association" "tgw_inbound_windows_assoc" {
-  count                         = var.create_tgw ? 1 : 0
-  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_windows[0].id
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
-}
-
-resource "aws_ec2_transit_gateway_route_table" "tgw_outbound_routes" {
-  count       = var.create_tgw ? 1 : 0
-  transit_gateway_id = aws_ec2_transit_gateway.tgw_outbound[0].id
-  tags = {
-    Name = "${var.project_tag}-outbound-routes"
-  }
-}
-
 resource "aws_ec2_transit_gateway_route" "tgw_outbound_rhel_to_windows" {
   count                   = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_outbound[0].association_default_route_table_id
   destination_cidr_block  = var.windows_vpc_cidr_block
   transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_windows[0].id
 }
 
 resource "aws_ec2_transit_gateway_route" "tgw_outbound_windows_to_rhel" {
   count                   = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_outbound[0].association_default_route_table_id
   destination_cidr_block  = var.main_cidr_block
   transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_rhel[0].id
-}
-
-resource "aws_ec2_transit_gateway_route_table_association" "tgw_outbound_rhel_assoc" {
-  count                         = var.create_tgw ? 1 : 0
-  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_rhel[0].id
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
-}
-
-resource "aws_ec2_transit_gateway_route_table_association" "tgw_outbound_windows_assoc" {
-  count                         = var.create_tgw ? 1 : 0
-  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_windows[0].id
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
 }
 
 resource "aws_route_table" "rhel_private_tgw" {
