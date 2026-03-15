@@ -200,31 +200,31 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_outbound_windows" {
 }
 
 resource "aws_ec2_transit_gateway_route" "tgw_inbound_rhel_to_windows" {
-  count                          = var.create_tgw ? 1 : 0
+  count                   = var.create_tgw ? 1 : 0
   transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_inbound[0].association_default_route_table_id
-  destination_cidr_block         = var.windows_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_windows[0].id
+  destination_cidr_block  = var.windows_instance_subnet_cidr
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_windows[0].id
 }
 
 resource "aws_ec2_transit_gateway_route" "tgw_inbound_windows_to_rhel" {
-  count                          = var.create_tgw ? 1 : 0
+  count                   = var.create_tgw ? 1 : 0
   transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_inbound[0].association_default_route_table_id
-  destination_cidr_block         = var.rhel_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_rhel[0].id
+  destination_cidr_block  = var.rhel_instance_subnet_cidr
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_rhel[0].id
 }
 
 resource "aws_ec2_transit_gateway_route" "tgw_outbound_rhel_to_windows" {
-  count                          = var.create_tgw ? 1 : 0
+  count                   = var.create_tgw ? 1 : 0
   transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_outbound[0].association_default_route_table_id
-  destination_cidr_block         = var.windows_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_windows[0].id
+  destination_cidr_block  = var.windows_instance_subnet_cidr
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_windows[0].id
 }
 
 resource "aws_ec2_transit_gateway_route" "tgw_outbound_windows_to_rhel" {
-  count                          = var.create_tgw ? 1 : 0
+  count                   = var.create_tgw ? 1 : 0
   transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_outbound[0].association_default_route_table_id
-  destination_cidr_block         = var.rhel_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_rhel[0].id
+  destination_cidr_block  = var.rhel_instance_subnet_cidr
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_rhel[0].id
 }
 
 resource "aws_route_table" "rhel_private_tgw" {
@@ -232,7 +232,7 @@ resource "aws_route_table" "rhel_private_tgw" {
   vpc_id = aws_vpc.demo_main_vpc[0].id
 
   route {
-    cidr_block         = var.windows_vpc_cidr_block
+    cidr_block = var.windows_vpc_cidr_block
     transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
   }
 
@@ -257,7 +257,7 @@ resource "aws_route_table" "windows_private_tgw" {
   vpc_id = aws_vpc.windows_vpc[0].id
 
   route {
-    cidr_block         = var.main_cidr_block
+    cidr_block = var.main_cidr_block
     transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
   }
 
