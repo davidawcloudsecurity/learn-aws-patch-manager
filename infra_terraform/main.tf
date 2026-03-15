@@ -142,7 +142,7 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_inbound_rhel" {
   count              = var.create_tgw && var.create_vpc ? 1 : 0
   transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
   vpc_id             = aws_vpc.demo_main_vpc[0].id
-  subnet_ids         = [aws_subnet.public_subnet_01[0].id]
+  subnet_ids         = aws_subnet.public_subnet_01[*].id
   tags = {
     Name = "${var.project_tag}-tgw-inbound-rhel-attach"
   }
@@ -152,7 +152,7 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_inbound_windows" {
   count              = var.create_tgw && var.create_vpc ? 1 : 0
   transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
   vpc_id             = aws_vpc.windows_vpc[0].id
-  subnet_ids         = [aws_subnet.windows_public_subnet[0].id]
+  subnet_ids         = aws_subnet.windows_public_subnet[*].id
   tags = {
     Name = "${var.project_tag}-tgw-inbound-windows-attach"
   }
@@ -173,7 +173,7 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_outbound_rhel" {
   count              = var.create_tgw && var.create_vpc ? 1 : 0
   transit_gateway_id = aws_ec2_transit_gateway.tgw_outbound[0].id
   vpc_id             = aws_vpc.demo_main_vpc[0].id
-  subnet_ids         = [aws_subnet.public_subnet_01[0].id]
+  subnet_ids         = aws_subnet.public_subnet_01[*].id
   tags = {
     Name = "${var.project_tag}-tgw-outbound-rhel-attach"
   }
@@ -183,10 +183,128 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_outbound_windows" {
   count              = var.create_tgw && var.create_vpc ? 1 : 0
   transit_gateway_id = aws_ec2_transit_gateway.tgw_outbound[0].id
   vpc_id             = aws_vpc.windows_vpc[0].id
-  subnet_ids         = [aws_subnet.windows_public_subnet[0].id]
+  subnet_ids         = aws_subnet.windows_public_subnet[*].id
   tags = {
     Name = "${var.project_tag}-tgw-outbound-windows-attach"
   }
+}
+
+resource "aws_ec2_transit_gateway_route_table" "tgw_inbound_routes" {
+  count       = var.create_tgw ? 1 : 0
+  transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
+  tags = {
+    Name = "${var.project_tag}-inbound-routes"
+  }
+}
+
+resource "aws_ec2_transit_gateway_route" "tgw_inbound_rhel_to_windows" {
+  count                   = var.create_tgw ? 1 : 0
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
+  destination_cidr_block  = var.windows_vpc_cidr_block
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_windows[0].id
+}
+
+resource "aws_ec2_transit_gateway_route" "tgw_inbound_windows_to_rhel" {
+  count                   = var.create_tgw ? 1 : 0
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
+  destination_cidr_block  = var.main_cidr_block
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_rhel[0].id
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "tgw_inbound_rhel_assoc" {
+  count                         = var.create_tgw ? 1 : 0
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_rhel[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "tgw_inbound_windows_assoc" {
+  count                         = var.create_tgw ? 1 : 0
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_windows[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_inbound_routes[0].id
+}
+
+resource "aws_ec2_transit_gateway_route_table" "tgw_outbound_routes" {
+  count       = var.create_tgw ? 1 : 0
+  transit_gateway_id = aws_ec2_transit_gateway.tgw_outbound[0].id
+  tags = {
+    Name = "${var.project_tag}-outbound-routes"
+  }
+}
+
+resource "aws_ec2_transit_gateway_route" "tgw_outbound_rhel_to_windows" {
+  count                   = var.create_tgw ? 1 : 0
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
+  destination_cidr_block  = var.windows_vpc_cidr_block
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_windows[0].id
+}
+
+resource "aws_ec2_transit_gateway_route" "tgw_outbound_windows_to_rhel" {
+  count                   = var.create_tgw ? 1 : 0
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
+  destination_cidr_block  = var.main_cidr_block
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_rhel[0].id
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "tgw_outbound_rhel_assoc" {
+  count                         = var.create_tgw ? 1 : 0
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_rhel[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "tgw_outbound_windows_assoc" {
+  count                         = var.create_tgw ? 1 : 0
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_windows[0].id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.tgw_outbound_routes[0].id
+}
+
+resource "aws_route_table" "rhel_private_tgw" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = aws_vpc.demo_main_vpc[0].id
+
+  route {
+    cidr_block = var.windows_vpc_cidr_block
+    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
+  }
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.demo_igw[0].id
+  }
+
+  tags = {
+    Name = "${var.project_tag}-rhel-private-tgw-rt"
+  }
+}
+
+resource "aws_route_table_association" "rhel_private_tgw_assoc" {
+  count          = var.create_vpc ? length(aws_subnet.private_subnet_01) : 0
+  subnet_id      = aws_subnet.private_subnet_01[count.index].id
+  route_table_id = aws_route_table.rhel_private_tgw[0].id
+}
+
+resource "aws_route_table" "windows_private_tgw" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = aws_vpc.windows_vpc[0].id
+
+  route {
+    cidr_block = var.main_cidr_block
+    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
+  }
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.windows_igw[0].id
+  }
+
+  tags = {
+    Name = "${var.project_tag}-windows-private-tgw-rt"
+  }
+}
+
+resource "aws_route_table_association" "windows_private_tgw_assoc" {
+  count          = var.create_vpc ? length(aws_subnet.windows_private_subnet) : 0
+  subnet_id      = aws_subnet.windows_private_subnet[count.index].id
+  route_table_id = aws_route_table.windows_private_tgw[0].id
 }
 
 # -------------------------------------------------------
