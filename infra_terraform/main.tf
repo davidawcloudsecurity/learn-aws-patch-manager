@@ -54,6 +54,11 @@ resource "aws_route_table" "public_rt" {
     gateway_id = aws_internet_gateway.demo_igw[0].id
   }
 
+  route {
+    cidr_block         = var.windows_vpc_public_subnet_cidrs[0]
+    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
+  }
+
   tags = {
     Name = "${var.project_tag}-rhel-public-rt"
   }
@@ -114,6 +119,11 @@ resource "aws_route_table" "windows_public_rt" {
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.windows_igw[0].id
+  }
+
+  route {
+    cidr_block         = var.public_subnet_cidrs[0]
+    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
   }
 
   tags = {
