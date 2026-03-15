@@ -1,13 +1,8 @@
-# Variable to enable/disable Windows instances
-variable "enable_windows_instances" {
-  description = "Enable Windows instances deployment"
-  type        = bool
-  default     = false
-}
+
 
 # Data source for Windows Server AMIs
 data "aws_ami" "windows_2019" {
-  count       = var.enable_windows_instances ? 1 : 0
+  count       = var.create_windows_instances ? 1 : 0
   most_recent = true
   owners      = ["amazon"]
   
@@ -17,16 +12,7 @@ data "aws_ami" "windows_2019" {
   }
 }
 
-data "aws_ami" "windows_2016" {
-  count       = var.enable_windows_instances ? 1 : 0
-  most_recent = true
-  owners      = ["amazon"]
-  
-  filter {
-    name   = "name"
-    values = ["Windows_Server-2016-English-Full-Base-*"]
-  }
-}
+
 
 # IAM role for Systems Manager
 resource "aws_iam_role" "ssm_role" {
@@ -63,7 +49,7 @@ locals {
 
 # Security Group for Windows instances (in VPC-2)
 resource "aws_security_group" "windows_sg" {
-  count       = var.enable_windows_instances ? 1 : 0
+  count       = var.create_windows_instances ? 1 : 0
   name        = "windows-instances-sg"
   description = "Security group for Windows EC2 instances"
   vpc_id      = aws_vpc.windows_vpc[0].id
@@ -96,7 +82,7 @@ resource "aws_security_group" "windows_sg" {
 
 # Windows Server 2019 - WSUS Server
 resource "aws_instance" "wsus_server_2019" {
-  count                      = var.enable_windows_instances ? 1 : 0
+  count                      = var.create_windows_instances ? 1 : 0
   ami                        = data.aws_ami.windows_2019[0].id
   instance_type              = "t3.medium"
   subnet_id                  = aws_subnet.windows_public_subnet[0].id
@@ -152,7 +138,7 @@ resource "aws_instance" "wsus_server_2019" {
 
 # DNS record for WSUS server
 resource "aws_route53_record" "wsus" {
-  count   = var.enable_windows_instances ? 1 : 0
+  count   = var.create_windows_instances ? 1 : 0
   zone_id = aws_route53_zone.private[0].zone_id
   name    = "wsus.davidawcloudsecurity.com"
   type    = "A"
@@ -160,46 +146,4 @@ resource "aws_route53_record" "wsus" {
   records = [aws_instance.wsus_server_2019[0].private_ip]
 }
 
-# Windows Server 2016 - Client
-resource "aws_instance" "windows_client_2016" {
-  count                      = var.enable_windows_instances ? 1 : 0
-  ami                        = "ami-0d8940f0876d45867" # "ami-02f5c360d1593d538" windows 2016
-  instance_type              = "t3.small"
-  subnet_id                  = aws_subnet.windows_public_subnet[0].id
-  vpc_security_group_ids     = [aws_security_group.windows_sg[0].id]
-  associate_public_ip_address = true
-  iam_instance_profile       = local.ssm_instance_profile
-  
-  user_data = <<-EOF
-    <script>
-    net user ec2-user P@ssw0rd123! /add /fullname:"EC2 User" /comment:"Local admin user"
-    net localgroup administrators ec2-user /add
-    </script>
-    <powershell>
-      
-    # Set WSUS server URL
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -Value "http://wsus.davidawcloudsecurity.com:8530" -Force
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -Value "http://wsus.davidawcloudsecurity.com:8530" -Force
-    
-    # Enable WSUS
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 1 -Force
-    
-    # Configure automatic updates
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUOptions" -Value 4 -Force
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "ScheduledInstallDay" -Value 0 -Force
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "ScheduledInstallTime" -Value 3 -Force
-    
-    # Restart Windows Update service
-    Restart-Service wuauserv
-    </powershell>
-    EOF
-  
-  depends_on = [aws_instance.wsus_server_2019, aws_route53_record.wsus]
-  
-  tags = {
-    Name      = "${var.project_tag}-client-2016"
-    Role      = "Client"
-    OS        = "Windows Server 2016"
-    PatchGroup = "Windows-Critical"
-  }
-}
+
