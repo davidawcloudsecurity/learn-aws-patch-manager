@@ -5,9 +5,15 @@ variable "region" {
 }
 
 variable "main_cidr_block" {
-  description = "Specifies the main CIDR block."
+  description = "Specifies the main CIDR block for VPC-1 (RHEL)."
   type        = string
   default     = "172.16.0.0/16"
+}
+
+variable "windows_vpc_cidr_block" {
+  description = "CIDR block for VPC-2 (Windows WSUS)."
+  type        = string
+  default     = "172.17.0.0/16"
 }
 
 variable "project_tag" {
@@ -18,14 +24,26 @@ variable "project_tag" {
 
 variable "public_subnet_cidrs" {
   type        = list(string)
-  description = "Public Subnet CIDR values"
+  description = "Public Subnet CIDR values for VPC-1 (RHEL)"
   default     = ["172.16.1.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   type        = list(string)
-  description = "Private Subnet CIDR values"
+  description = "Private Subnet CIDR values for VPC-1 (RHEL)"
   default     = ["172.16.2.0/24"]
+}
+
+variable "windows_vpc_public_subnet_cidrs" {
+  type        = list(string)
+  description = "Public Subnet CIDR values for VPC-2 (Windows)"
+  default     = ["172.17.1.0/24"]
+}
+
+variable "windows_vpc_private_subnet_cidrs" {
+  type        = list(string)
+  description = "Private Subnet CIDR values for VPC-2 (Windows)"
+  default     = ["172.17.2.0/24"]
 }
 
 variable "azs" {
@@ -56,4 +74,10 @@ variable "use_existing_iam" {
   description = "Set to true if IAM role already exists"
   type        = bool
   default     = false
+}
+
+variable "create_tgw" {
+  description = "Whether to create Transit Gateways"
+  type        = bool
+  default     = true
 }

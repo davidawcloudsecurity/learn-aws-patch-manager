@@ -1,13 +1,33 @@
-output "aws_vpc_main" {
+output "aws_vpc_rhel" {
   value = var.create_vpc ? aws_vpc.demo_main_vpc[0].id : null
 }
 
-output "aws_subnet_public" {
+output "aws_vpc_windows" {
+  value = var.create_vpc ? aws_vpc.windows_vpc[0].id : null
+}
+
+output "aws_subnet_rhel_public" {
   value = var.create_vpc ? aws_subnet.public_subnet_01[0].id : null
 }
 
-output "aws_subnet_private" {
+output "aws_subnet_rhel_private" {
   value = var.create_vpc ? aws_subnet.private_subnet_01[0].id : null
+}
+
+output "aws_subnet_windows_public" {
+  value = var.create_vpc ? aws_subnet.windows_public_subnet[0].id : null
+}
+
+output "aws_subnet_windows_private" {
+  value = var.create_vpc ? aws_subnet.windows_private_subnet[0].id : null
+}
+
+output "tgw_inbound_id" {
+  value = var.create_tgw ? aws_ec2_transit_gateway.tgw_inbound[0].id : null
+}
+
+output "tgw_outbound_id" {
+  value = var.create_tgw ? aws_ec2_transit_gateway.tgw_outbound[0].id : null
 }
 
 output "wsus_server_public_ip" {
