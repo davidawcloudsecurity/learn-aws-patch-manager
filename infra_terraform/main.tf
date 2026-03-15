@@ -227,3 +227,251 @@ data "aws_subnets" "existing_public" {
     values = ["${var.project_tag}-rhel-pb-sub-01"]
   }
 }
+
+# -------------------------------------------------------
+# VPC Flow Logs
+# -------------------------------------------------------
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  count             = var.create_vpc ? 1 : 0
+  name              = "/aws/vpc/flow-logs/${var.project_tag}"
+  retention_in_days = 30
+}
+
+resource "aws_iam_role" "vpc_flow_log_role" {
+  count = var.create_vpc ? 1 : 0
+  name  = "${var.project_tag}-vpc-flow-log-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "vpc-flow-logs.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "vpc_flow_log_policy" {
+  count = var.create_vpc ? 1 : 0
+  role  = aws_iam_role.vpc_flow_log_role[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_flow_log" "rhel_vpc" {
+  count           = var.create_vpc ? 1 : 0
+  vpc_id          = aws_vpc.demo_main_vpc[0].id
+  traffic_type    = "ALL"
+  iam_role_arn    = aws_iam_role.vpc_flow_log_role[0].arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
+  tags = {
+    Name = "${var.project_tag}-rhel-vpc-flow-log"
+  }
+}
+
+resource "aws_flow_log" "windows_vpc" {
+  count           = var.create_vpc ? 1 : 0
+  vpc_id          = aws_vpc.windows_vpc[0].id
+  traffic_type    = "ALL"
+  iam_role_arn    = aws_iam_role.vpc_flow_log_role[0].arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
+  tags = {
+    Name = "${var.project_tag}-windows-vpc-flow-log"
+  }
+}
+
+# -------------------------------------------------------
+# NACLs - RHEL VPC
+# -------------------------------------------------------
+resource "aws_network_acl" "rhel_nacl" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = aws_vpc.demo_main_vpc[0].id
+  tags   = { Name = "${var.project_tag}-rhel-nacl" }
+}
+
+resource "aws_network_acl_rule" "rhel_inbound_http" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  rule_number    = 100
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 80
+  to_port        = 80
+}
+
+resource "aws_network_acl_rule" "rhel_inbound_https" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  rule_number    = 110
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 443
+  to_port        = 443
+}
+
+resource "aws_network_acl_rule" "rhel_inbound_ephemeral" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  rule_number    = 120
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 1024
+  to_port        = 65535
+}
+
+resource "aws_network_acl_rule" "rhel_outbound_http" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  rule_number    = 100
+  egress         = true
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 80
+  to_port        = 80
+}
+
+resource "aws_network_acl_rule" "rhel_outbound_https" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  rule_number    = 110
+  egress         = true
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 443
+  to_port        = 443
+}
+
+resource "aws_network_acl_rule" "rhel_outbound_ephemeral" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  rule_number    = 120
+  egress         = true
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 1024
+  to_port        = 65535
+}
+
+resource "aws_network_acl_association" "rhel_public" {
+  count          = var.create_vpc ? length(aws_subnet.public_subnet_01) : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  subnet_id      = aws_subnet.public_subnet_01[count.index].id
+}
+
+resource "aws_network_acl_association" "rhel_private" {
+  count          = var.create_vpc ? length(aws_subnet.private_subnet_01) : 0
+  network_acl_id = aws_network_acl.rhel_nacl[0].id
+  subnet_id      = aws_subnet.private_subnet_01[count.index].id
+}
+
+# -------------------------------------------------------
+# NACLs - Windows VPC
+# -------------------------------------------------------
+resource "aws_network_acl" "windows_nacl" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = aws_vpc.windows_vpc[0].id
+  tags   = { Name = "${var.project_tag}-windows-nacl" }
+}
+
+resource "aws_network_acl_rule" "windows_inbound_http" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  rule_number    = 100
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 80
+  to_port        = 80
+}
+
+resource "aws_network_acl_rule" "windows_inbound_https" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  rule_number    = 110
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 443
+  to_port        = 443
+}
+
+resource "aws_network_acl_rule" "windows_inbound_ephemeral" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  rule_number    = 120
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 1024
+  to_port        = 65535
+}
+
+resource "aws_network_acl_rule" "windows_outbound_http" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  rule_number    = 100
+  egress         = true
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 80
+  to_port        = 80
+}
+
+resource "aws_network_acl_rule" "windows_outbound_https" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  rule_number    = 110
+  egress         = true
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 443
+  to_port        = 443
+}
+
+resource "aws_network_acl_rule" "windows_outbound_ephemeral" {
+  count          = var.create_vpc ? 1 : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  rule_number    = 120
+  egress         = true
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 1024
+  to_port        = 65535
+}
+
+resource "aws_network_acl_association" "windows_public" {
+  count          = var.create_vpc ? length(aws_subnet.windows_public_subnet) : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  subnet_id      = aws_subnet.windows_public_subnet[count.index].id
+}
+
+resource "aws_network_acl_association" "windows_private" {
+  count          = var.create_vpc ? length(aws_subnet.windows_private_subnet) : 0
+  network_acl_id = aws_network_acl.windows_nacl[0].id
+  subnet_id      = aws_subnet.windows_private_subnet[count.index].id
+}
