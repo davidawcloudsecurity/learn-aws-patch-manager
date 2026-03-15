@@ -227,3 +227,65 @@ data "aws_subnets" "existing_public" {
     values = ["${var.project_tag}-rhel-pb-sub-01"]
   }
 }
+
+# -------------------------------------------------------
+# VPC Flow Logs
+# -------------------------------------------------------
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  count             = var.create_vpc ? 1 : 0
+  name              = "/aws/vpc/flow-logs/${var.project_tag}"
+  retention_in_days = 30
+}
+
+resource "aws_iam_role" "vpc_flow_log_role" {
+  count = var.create_vpc ? 1 : 0
+  name  = "${var.project_tag}-vpc-flow-log-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "vpc-flow-logs.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "vpc_flow_log_policy" {
+  count = var.create_vpc ? 1 : 0
+  role  = aws_iam_role.vpc_flow_log_role[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_flow_log" "rhel_vpc" {
+  count           = var.create_vpc ? 1 : 0
+  vpc_id          = aws_vpc.demo_main_vpc[0].id
+  traffic_type    = "ALL"
+  iam_role_arn    = aws_iam_role.vpc_flow_log_role[0].arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
+  tags = {
+    Name = "${var.project_tag}-rhel-vpc-flow-log"
+  }
+}
+
+resource "aws_flow_log" "windows_vpc" {
+  count           = var.create_vpc ? 1 : 0
+  vpc_id          = aws_vpc.windows_vpc[0].id
+  traffic_type    = "ALL"
+  iam_role_arn    = aws_iam_role.vpc_flow_log_role[0].arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
+  tags = {
+    Name = "${var.project_tag}-windows-vpc-flow-log"
+  }
+}
