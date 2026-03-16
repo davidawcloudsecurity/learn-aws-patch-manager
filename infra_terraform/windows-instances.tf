@@ -53,14 +53,7 @@ resource "aws_security_group" "windows_sg" {
   name        = "windows-instances-sg"
   description = "Security group for Windows EC2 instances"
   vpc_id      = aws_vpc.windows_vpc[0].id
-  
-  ingress {
-    from_port   = 3389
-    to_port     = 3389
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
+   
   ingress {
     from_port   = 8530
     to_port     = 8531
