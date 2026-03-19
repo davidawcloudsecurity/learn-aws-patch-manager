@@ -563,3 +563,91 @@ resource "aws_network_acl_association" "windows_private" {
   network_acl_id = aws_network_acl.windows_nacl[0].id
   subnet_id      = aws_subnet.windows_private_subnet[count.index].id
 }
+
+# -------------------------------------------------------
+# SNS Topic for CloudWatch Alarm Actions (test target)
+# -------------------------------------------------------
+resource "aws_sns_topic" "alarm_notifications" {
+  name = "${var.project_tag}-alarm-notifications"
+  tags = {
+    Name = "${var.project_tag}-alarm-notifications"
+  }
+}
+
+# -------------------------------------------------------
+# CloudWatch Alarms — for testing somealarm.sh
+# These have AlarmActions but NO InsufficientDataActions,
+# so the bash script should add them.
+# -------------------------------------------------------
+
+# Alarm 1: VPC Flow Log incoming bytes (uses the existing log group)
+resource "aws_cloudwatch_metric_alarm" "vpc_flow_log_bytes" {
+  count               = var.create_vpc ? 1 : 0
+  alarm_name          = "${var.project_tag}-vpc-flow-log-incoming-bytes"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "IncomingBytes"
+  namespace           = "AWS/Logs"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1000000
+  alarm_description   = "Alert when VPC flow log incoming bytes exceed 1MB in 5 min"
+  actions_enabled     = true
+
+  dimensions = {
+    LogGroupName = "/aws/vpc/flow-logs/${var.project_tag}"
+  }
+
+  alarm_actions = [aws_sns_topic.alarm_notifications.arn]
+  # Intentionally NO insufficient_data_actions — somealarm.sh should add these
+
+  tags = {
+    Name = "${var.project_tag}-vpc-flow-log-bytes-alarm"
+  }
+}
+
+# Alarm 2: High rejected packets on RHEL VPC (synthetic/test metric)
+resource "aws_cloudwatch_metric_alarm" "high_rejected_packets" {
+  alarm_name          = "${var.project_tag}-high-rejected-packets"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "RejectedPackets"
+  namespace           = "CustomVPC/FlowMetrics"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 100
+  alarm_description   = "Alert when rejected packets >= 100 over 2 evaluation periods"
+  actions_enabled     = true
+
+  dimensions = {
+    VpcId = "test-rhel-vpc"
+  }
+
+  alarm_actions = [aws_sns_topic.alarm_notifications.arn]
+  # Intentionally NO insufficient_data_actions
+
+  tags = {
+    Name = "${var.project_tag}-rejected-packets-alarm"
+  }
+}
+
+# Alarm 3: Transit Gateway bytes out (no dimensions, simple alarm)
+resource "aws_cloudwatch_metric_alarm" "tgw_bytes_out" {
+  alarm_name          = "${var.project_tag}-tgw-bytes-out"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "BytesOut"
+  namespace           = "AWS/TransitGateway"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 500000000
+  alarm_description   = "Alert when TGW outbound bytes exceed 500MB avg over 15 min"
+  actions_enabled     = true
+
+  alarm_actions = [aws_sns_topic.alarm_notifications.arn]
+  # Intentionally NO insufficient_data_actions
+
+  tags = {
+    Name = "${var.project_tag}-tgw-bytes-out-alarm"
+  }
+}
