@@ -1,3 +1,6 @@
+hi David, actually we can use Zoom to get discussion summary.
+
+https://amazon.zoom.us/j/6830740164?pwd=6Eswsqf2v0JWuZFzYks4jykSDZNY7P.1
 # learn-aws-patch-manager
 resource - https://docs.oracle.com/en-us/iaas/oracle-linux/oci/security-updates-using-dnf.htm
 resource - https://inventivehq.com/blog/windows-update-commands-powershell-usoclient-amp-wuauclt
