@@ -156,6 +156,11 @@ Install specific KB
 ```
 $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB5091573"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
 ```
+or
+Install any KB only
+```
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
+```
 Real Use Cases
 ```
 $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB5091573"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
