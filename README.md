@@ -148,6 +148,14 @@ Scan for security updates
 ```
 (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Where-Object {($_.Categories|%{$_.Name}) -contains "Security Updates"} | Select-Object Title
 ```
+Scan for specific KB (e.g. KB5091573)
+```
+(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Where-Object { $_.Title -match "KB5091573" } | Select-Object Title 
+```
+Install specific KB
+```
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB5091573"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
+```
 # Last 50 Windows Update related events
 ```
 get-winevent -logname System| Where-Object {$_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"} | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
