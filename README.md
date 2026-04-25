@@ -159,7 +159,7 @@ $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Searc
 or
 Install any KB only
 ```
-$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB not found"}
 ```
 Real Use Cases
 ```
@@ -167,7 +167,8 @@ $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Searc
 $cbsPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"
 $wuPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
 if ($cbsPending -and $wuPending) {
-    Write-Output "Both reboot conditions are TRUE — restarting now."Restart-Computer -Force
+    Write-Output "Both reboot conditions are TRUE — restarting now."
+Restart-Computer -Force
 } else {
     Write-Output "CBS RebootPending : $cbsPending"
     Write-Output "WU RebootRequired : $wuPending"
