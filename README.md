@@ -156,6 +156,19 @@ Install specific KB
 ```
 $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB5091573"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
 ```
+Real Use Cases
+```
+$S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB5091573"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
+$cbsPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"
+$wuPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
+if ($cbsPending -and $wuPending) {
+    Write-Output "Both reboot conditions are TRUE — restarting now."Restart-Computer -Force
+} else {
+    Write-Output "CBS RebootPending : $cbsPending"
+    Write-Output "WU RebootRequired : $wuPending"
+    Write-Output "Not all conditions met — skipping restart."
+}
+```
 # Last 50 Windows Update related events
 ```
 get-winevent -logname System| Where-Object {$_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"} | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
