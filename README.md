@@ -168,7 +168,7 @@ $cbsPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Compone
 $wuPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
 if ($cbsPending -and $wuPending) {
     Write-Output "Both reboot conditions are TRUE — restarting now."
-Restart-Computer -Force
+    Restart-Computer -Force
 } else {
     Write-Output "CBS RebootPending : $cbsPending"
     Write-Output "WU RebootRequired : $wuPending"
