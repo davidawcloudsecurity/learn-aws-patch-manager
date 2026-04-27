@@ -301,6 +301,7 @@ wget -O custom_name.zip http://example.com/file.zip
 ### How to pull names without title
 ```
 Get-WindowsPackage -Online | Where-Object {$_.packagename -like "*17763.7434*"} | Select-Object -ExpandProperty packagename
+Get-WindowsPackage -Online | sort-object installtime -descending | select-object -first 5
 ```
 ### How to pull packagename where packagename contains certain KB metadata (17763.7434)
 ```
