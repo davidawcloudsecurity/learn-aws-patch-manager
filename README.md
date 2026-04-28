@@ -161,6 +161,7 @@ $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Searc
 Real Use Cases
 ```
 $S=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates|?{$_.Title -match "KB5091573"};if($S){$C=New-Object -ComObject Microsoft.Update.UpdateColl;$S|%{[void]$C.Add($_)};$D=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateDownloader();$D.Updates=$C;$D.Download();$I=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateInstaller();$I.Updates=$C;$R=$I.Install();Write-Host "Installed: $($C.Count), Result: $($R.ResultCode)"}else{Write-Host "KB5091573 not found"}
+Get-HotFix | Sort-Object InstalledOn | Out-String | findstr (Get-Date -Format "M/d/yyyy")
 $cbsPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"
 $wuPending = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
 if ($cbsPending -and $wuPending) {
