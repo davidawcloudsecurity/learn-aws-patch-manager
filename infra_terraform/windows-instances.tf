@@ -83,7 +83,7 @@ resource "aws_security_group" "windows_sg" {
 # Windows Server 2019 - WSUS Server
 resource "aws_instance" "wsus_server_2019" {
   count                      = var.create_windows_instances ? 1 : 0
-  ami                        = data.aws_ami.windows_2019[0].id
+  ami                        = "ami-0ca7038e6ff499fc0" # Windows_Server-2019-English-Full-Base-2026.03.11  |  2026-03-11T19:53:49.000Z
   instance_type              = "t3.medium"
   subnet_id                  = aws_subnet.windows_public_subnet[0].id
   vpc_security_group_ids     = [aws_security_group.windows_sg[0].id]
