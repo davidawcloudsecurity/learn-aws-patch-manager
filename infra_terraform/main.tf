@@ -288,6 +288,10 @@ resource "aws_route53_zone" "private" {
     vpc_id = aws_vpc.demo_main_vpc[0].id
   }
 
+  vpc {
+    vpc_id = aws_vpc.windows_vpc[0].id
+  }
+
   tags = {
     Name = "${var.project_tag}-private-zone"
   }
