@@ -60,6 +60,13 @@ resource "aws_security_group" "windows_sg" {
     protocol    = "tcp"
     cidr_blocks = [var.main_cidr_block]
   }
+
+  ingress {
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    self            = true
+  }
   
   egress {
     from_port   = 0
