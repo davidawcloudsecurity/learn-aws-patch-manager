@@ -2,7 +2,7 @@
 variable "enable_rhel_instances" {
   description = "Enable RHEL instances deployment"
   type        = bool
-default     = true
+  default     = false
 }
 
 # Data source for RHEL 9 AMI
