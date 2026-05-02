@@ -129,6 +129,31 @@ resource "aws_instance" "wsus_server_2019" {
   }
 }
 
+# Windows Server 2019 - WSUS Server
+resource "aws_instance" "win_server_2019" {
+  count                      = var.create_windows_instances ? 1 : 0
+  ami                        = data.aws_ami.windows_2019[0].id
+  instance_type              = "t3.medium"
+  subnet_id                  = aws_subnet.windows_public_subnet[0].id
+  vpc_security_group_ids     = [aws_security_group.windows_sg[0].id]
+  associate_public_ip_address = true
+  iam_instance_profile       = local.ssm_instance_profile
+  
+  user_data = <<-EOF
+    <script>
+    net user ec2-user P@ssw0rd123! /add /fullname:"EC2 User" /comment:"Local admin user"
+    net localgroup administrators ec2-user /add
+    </powershell>
+    EOF
+  
+  tags = {
+    Name      = "${var.project_tag}-win-2019"
+    Role      = "WSUS"
+    OS        = "Windows Server 2019"
+    PatchGroup = "Windows-Critical"
+  }
+}
+
 # DNS record for WSUS server
 resource "aws_route53_record" "wsus" {
   count   = var.create_windows_instances ? 1 : 0
