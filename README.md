@@ -337,18 +337,19 @@ wmic qfe list
 ```
 (New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
 ```
-### How to approve kb for wsus
-# List all available updates (not yet approved)
+## How to approve kb for wsus
+### List all available updates (not yet approved)
 ```
 $wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | Select-Object Title, KnowledgebaseArticles
 ```
-# Approve ALL unapproved updates
+### Approve ALL unapproved updates
 ```
 $allComputers = $wsus.GetComputerTargetGroups() | Where-Object { $_.Name -eq "All Computers" }
 $wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | ForEach-Object { $_.Approve("Install", $allComputers) }
 ```
-# Check approval status of a KB
+### Check approval status of a KB/all
 ```
+$wsus.GetUpdates() | Where-Object { $_.IsApproved } | Select-Object Title, KnowledgebaseArticles
 $wsus.SearchUpdates("KB5068791") | Select-Object Title, IsApproved, CreationDate
 ```
 ### Force update
