@@ -105,8 +105,20 @@ Start-Sleep -Seconds 5
 wuauclt /reportnow
 
 ```
+### Remove WSUS
+```
+# Remove WSUS server settings
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -ErrorAction SilentlyContinue
 
-#
+# Disable "Use WSUS" flag and remove AU overrides
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v UseWUServer /f
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v NoAutoUpdate /f
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v AUOptions /f
+
+# Restart Windows Update service to apply changes
+Restart-Service wuauserv
+```
 ### Sync WSUS
 ```
 How WSUS Actually Works:
