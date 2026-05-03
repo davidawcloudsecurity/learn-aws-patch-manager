@@ -1,3 +1,34 @@
+### how to approve the kb in wsus in powershell
+```powershell
+# Connect to WSUS server
+$wsus = Get-WsusServer -Name "localhost" -PortNumber 8530
+
+# Approve a specific KB for all computers
+$update = $wsus.SearchUpdates("KB5068791") | Where-Object { $_.Title -match "KB5068791" }
+$group = $wsus.GetComputerTargetGroups() | Where-Object { $_.Name -eq "All Computers" }
+$update | ForEach-Object { $_.Approve("Install", $group) }
+```
+
+To approve for a **specific computer group** instead:
+
+```powershell
+$group = $wsus.GetComputerTargetGroups() | Where-Object { $_.Name -eq "Your Group Name" }
+$update | ForEach-Object { $_.Approve("Install", $group) }
+```
+
+Some useful variations:
+
+```powershell
+# List all available updates (not yet approved)
+$wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | Select-Object Title, KnowledgebaseArticles
+
+# Approve ALL unapproved updates
+$allComputers = $wsus.GetComputerTargetGroups() | Where-Object { $_.Name -eq "All Computers" }
+$wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | ForEach-Object { $_.Approve("Install", $allComputers) }
+
+# Check approval status of a KB
+$wsus.SearchUpdates("KB5068791") | Select-Object Title, IsApproved, CreationDate
+```
 ### Logs to debug for wsus
 ```
 Get-Content "C:\Program Files\Update Services\LogFiles\SoftwareDistribution.log" -Wait -Tail 10
