@@ -368,6 +368,7 @@ wmic qfe list
 ```
 ### List all available updates (not yet approved)
 ```
+$wsus = Get-WsusServer -Name "localhost" -PortNumber 8530
 $wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | Select-Object Title, KnowledgebaseArticles
 ```
 ### Approve ALL unapproved updates
