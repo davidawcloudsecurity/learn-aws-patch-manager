@@ -71,6 +71,8 @@ $wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined }
 
 # Check approval status of a KB
 $wsus.SearchUpdates("KB5068791") | Select-Object Title, IsApproved, CreationDate
+# List only approved updates:
+$wsus.GetUpdates() | Where-Object { $_.IsApproved } | Select-Object Title, KnowledgebaseArticles
 ```
 ### Logs to debug for wsus
 ```
