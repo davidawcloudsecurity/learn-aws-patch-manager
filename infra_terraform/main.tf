@@ -285,6 +285,7 @@ resource "aws_route53_zone" "private" {
   name  = "davidawcloudsecurity.com"
 
   vpc {
+    count       = var.enable_rhel_instances ? 1 : 0
     vpc_id = aws_vpc.demo_main_vpc[0].id
   }
 
