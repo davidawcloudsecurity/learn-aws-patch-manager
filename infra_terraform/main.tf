@@ -285,16 +285,18 @@ resource "aws_route53_zone" "private" {
   name  = "davidawcloudsecurity.com"
 
   vpc {
-    vpc_id = aws_vpc.demo_main_vpc[0].id
-  }
-
-  vpc {
     vpc_id = aws_vpc.windows_vpc[0].id
   }
 
   tags = {
     Name = "${var.project_tag}-private-zone"
   }
+}
+
+resource "aws_route53_zone_association" "rhel_vpc" {
+  count   = var.create_route53 && var.enable_rhel_instances && var.create_vpc ? 1 : 0
+  zone_id = aws_route53_zone.private[0].zone_id
+  vpc_id  = aws_vpc.demo_main_vpc[0].id
 }
 
 # -------------------------------------------------------
