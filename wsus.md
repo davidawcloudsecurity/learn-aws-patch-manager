@@ -298,16 +298,16 @@ Deny-WsusUpdate
 
 3. Create Computer Groups and Approve Updates:
 
-# Create a new computer group
+### Create a new computer group
 Add-WsusComputer -UpdateServer $WSUSServer -ComputerTargetGroupName "Test Servers"
 
-# Approve updates for specific group
+### Approve updates for specific group
 Get-WsusUpdate -UpdateServer $WSUSServer -Classification "Security Updates" | 
 Approve-WsusUpdate -Action Install -TargetGroupName "Test Servers"
 
 4. Get Update Approval Status:
 
-# Check approval status of specific KB
+### Check approval status of specific KB
 Get-WsusUpdate -UpdateServer $WSUSServer | 
 Where-Object {$_.KnowledgebaseArticles -contains "KB5034441"} | 
 Get-WsusUpdateApproval
