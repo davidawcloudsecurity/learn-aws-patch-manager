@@ -366,10 +366,6 @@ wmic qfe list
 ```
 (New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
 ```
-### Check for Pending or Missing Updates
-```
-(New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
-```
 ### List all available updates (not yet approved)
 ```
 $wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | Select-Object Title, KnowledgebaseArticles
