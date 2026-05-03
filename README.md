@@ -1,7 +1,10 @@
 # learn-aws-patch-manager
 resource - https://docs.oracle.com/en-us/iaas/oracle-linux/oci/security-updates-using-dnf.htm
 resource - https://inventivehq.com/blog/windows-update-commands-powershell-usoclient-amp-wuauclt
-
+### Cron expression
+```
+Default: "at(2026-04-16T22:00:00)"  # CHANGE: Update time and ensure BackupSchedule is 1 hour earlier
+```
 ### Secret
 ```
 repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | wc -l && repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' | grep -v '2026-' | xargs dnf update -y
