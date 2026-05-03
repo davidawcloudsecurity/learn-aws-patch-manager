@@ -1,3 +1,44 @@
+### Scripts to import manual download cab / KB into c:\wsus\wsuscontent
+```
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+reg add HKLM\SOFTWARE\Microsoft\.NETFramework\v4.0.30319 /v SchUseStrongCrypto /t REG_DWORD /d 1 /f
+reg add HKLM\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319 /v SchUseStrongCrypto /t REG_DWORD /d 1 /f
+iisreset
+Restart-Service WSUSService
+Start-Sleep -Seconds 10
+
+$updateId = "da327f7c-5d64-43dc-9671-72723a5074f3"
+$wsus = Get-WsusServer
+$subscription = $wsus.GetSubscription()
+
+# Start synchronization to establish connection
+Write-Host "Starting synchronization to establish connection..."
+$subscription.StartSynchronization()
+
+# Wait a few seconds for connection to establish
+Start-Sleep -Seconds 5
+
+# Now cancel it so it doesn't download everything
+Write-Host "Stopping synchronization..."
+$subscription.StopSynchronization()
+
+# Check if it's stopped
+Start-Sleep -Seconds 2
+$status = $subscription.GetSynchronizationStatus()
+Write-Host "Sync status: $status"
+
+# Now try your import
+Write-Host "`nAttempting import..."
+
+try {
+    $wsus.ImportUpdateFromCatalogSite($updateId, @())
+    Write-Host "Import successful!"
+} catch {
+    Write-Host "Import failed: $($_.Exception.Message)"
+}
+
+# (Get-WsusServer).SearchUpdate('KbNumber') to check if the KB exist
+```
 ### how to approve the kb in wsus in powershell
 ```powershell
 # Connect to WSUS server
@@ -60,47 +101,7 @@ Start-Sleep -Seconds 5
 wuauclt /reportnow
 
 ```
-### Scripts to import manual download cab / KB into c:\wsus\wsuscontent
-```
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-reg add HKLM\SOFTWARE\Microsoft\.NETFramework\v4.0.30319 /v SchUseStrongCrypto /t REG_DWORD /d 1 /f
-reg add HKLM\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319 /v SchUseStrongCrypto /t REG_DWORD /d 1 /f
-iisreset
-Restart-Service WSUSService
-Start-Sleep -Seconds 10
 
-$updateId = "da327f7c-5d64-43dc-9671-72723a5074f3"
-$wsus = Get-WsusServer
-$subscription = $wsus.GetSubscription()
-
-# Start synchronization to establish connection
-Write-Host "Starting synchronization to establish connection..."
-$subscription.StartSynchronization()
-
-# Wait a few seconds for connection to establish
-Start-Sleep -Seconds 5
-
-# Now cancel it so it doesn't download everything
-Write-Host "Stopping synchronization..."
-$subscription.StopSynchronization()
-
-# Check if it's stopped
-Start-Sleep -Seconds 2
-$status = $subscription.GetSynchronizationStatus()
-Write-Host "Sync status: $status"
-
-# Now try your import
-Write-Host "`nAttempting import..."
-
-try {
-    $wsus.ImportUpdateFromCatalogSite($updateId, @())
-    Write-Host "Import successful!"
-} catch {
-    Write-Host "Import failed: $($_.Exception.Message)"
-}
-
-# (Get-WsusServer).SearchUpdate('KbNumber') to check if the KB exist
-```
 #
 ### Sync WSUS
 ```
