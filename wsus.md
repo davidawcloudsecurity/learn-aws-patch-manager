@@ -38,6 +38,8 @@ try {
 }
 
 # (Get-WsusServer).SearchUpdate('KbNumber') to check if the KB exist
+$wsus = Get-WsusServer -Name "localhost" -PortNumber 8530
+$wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | Select-Object Title, KnowledgebaseArticles
 ```
 ### how to approve the kb in wsus in powershell
 ```powershell
