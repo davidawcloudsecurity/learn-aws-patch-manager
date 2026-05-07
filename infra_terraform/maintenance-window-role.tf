@@ -30,15 +30,15 @@ resource "aws_iam_role" "maintenance_window_role" {
 }
 
 # -------------------------------------------------------
-# Attach AWS Managed Policy (required for SSM to validate the role)
+# Attach the CORRECT Managed Policy for Maintenance Window Service Role
 # -------------------------------------------------------
-resource "aws_iam_role_policy_attachment" "maintenance_window_ssm_core" {
+resource "aws_iam_role_policy_attachment" "maintenance_window_ssm_mw_role" {
   role       = aws_iam_role.maintenance_window_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonSSMMaintenanceWindowRole"
 }
 
 # -------------------------------------------------------
-# Policy for Patch Manager & PowerShell Operations
+# Additional inline policy for Patch Manager & PowerShell
 # -------------------------------------------------------
 resource "aws_iam_role_policy" "maintenance_window_patch_policy" {
   name_prefix = "${var.project_tag}-mw-patch-"
@@ -68,7 +68,6 @@ resource "aws_iam_role_policy" "maintenance_window_patch_policy" {
         Resource = "*"
       },
       {
-        # SendCommand must list BOTH document and instance ARNs in the SAME statement
         Sid    = "AllowSendCommandRunPatchBaseline"
         Effect = "Allow"
         Action = ["ssm:SendCommand"]
@@ -119,7 +118,6 @@ resource "aws_iam_role_policy" "maintenance_window_patch_policy" {
 # -------------------------------------------------------
 # Policy for EC2 Messages Service
 # -------------------------------------------------------
-# Required for Systems Manager Agent communication with AWS Systems Manager service
 resource "aws_iam_role_policy" "maintenance_window_ec2messages_policy" {
   name_prefix = "${var.project_tag}-mw-ec2msg-"
   role        = aws_iam_role.maintenance_window_role.id
@@ -146,7 +144,6 @@ resource "aws_iam_role_policy" "maintenance_window_ec2messages_policy" {
 # -------------------------------------------------------
 # Policy for SSM Messages Service
 # -------------------------------------------------------
-# Required for session management and command execution
 resource "aws_iam_role_policy" "maintenance_window_ssmmessages_policy" {
   name_prefix = "${var.project_tag}-mw-ssmmsg-"
   role        = aws_iam_role.maintenance_window_role.id
