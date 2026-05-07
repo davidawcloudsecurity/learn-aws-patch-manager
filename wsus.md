@@ -2,8 +2,11 @@
 ```
 $WSUSServer = Get-WsusServer -Name "localhost" -PortNumber 8530
 $updateIds = @(
-    "da327f7c-5d64-43dc-9671-72723a5074f3",
-    "6836706d-08f4-477d-93c5-1645672a7709"
+    "e20ecd7e-9517-4f2d-9530-5cd83d0c1e9f",
+    "135c0c28-3af4-46a2-9076-826ad62b0374",
+    "ab71f1cc-15f5-4d3a-b12c-d1664044e79f",
+    "6b3d0f8d-b508-4737-8ec5-19c89cd049ed",
+    "3929eae1-c66b-4fae-ac30-e6add683fee2"
 )
 $wsus = Get-WsusServer
 $subscription = $wsus.GetSubscription()
