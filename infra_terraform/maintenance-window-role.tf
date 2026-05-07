@@ -1,10 +1,12 @@
 # -------------------------------------------------------
+# Data Sources for Account & Region Info
+# -------------------------------------------------------
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+# -------------------------------------------------------
 # IAM Role for Systems Manager Maintenance Window
 # -------------------------------------------------------
-# This role is assumed by AWS Systems Manager to execute
-# patch baselines and run PowerShell commands during
-# maintenance windows.
-
 resource "aws_iam_role" "maintenance_window_role" {
   name_prefix = "${var.project_tag}-mw-"
   description = "Role for Systems Manager Maintenance Window to run patch baselines and PowerShell"
@@ -28,7 +30,15 @@ resource "aws_iam_role" "maintenance_window_role" {
 }
 
 # -------------------------------------------------------
-# Policy for Patch Manager Operations
+# Attach AWS Managed Policy (required for SSM to validate the role)
+# -------------------------------------------------------
+resource "aws_iam_role_policy_attachment" "maintenance_window_ssm_core" {
+  role       = aws_iam_role.maintenance_window_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# -------------------------------------------------------
+# Policy for Patch Manager & PowerShell Operations
 # -------------------------------------------------------
 resource "aws_iam_role_policy" "maintenance_window_patch_policy" {
   name_prefix = "${var.project_tag}-mw-patch-"
@@ -38,34 +48,47 @@ resource "aws_iam_role_policy" "maintenance_window_patch_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowPatchBaselineOperations"
+        Sid    = "AllowSSMCoreOperations"
         Effect = "Allow"
         Action = [
           "ssm:DescribeInstanceInformation",
           "ssm:ListAssociations",
           "ssm:GetAutomationExecution",
           "ssm:StartAutomationExecution",
-          "ssm:SendCommand",
           "ssm:GetCommandInvocation",
           "ssm:ListCommandInvocations",
           "ssm:GetDeployablePatchSnapshotForInstance",
-          "ssm:DescribePatchGroupState"
+          "ssm:DescribePatchGroupState",
+          "ssm:DescribePatchBaselines",
+          "ssm:DescribePatchGroups",
+          "ssm:GetPatchBaseline",
+          "ssm:DescribeInstancePatchStates",
+          "ssm:DescribeInstancePatches"
         ]
         Resource = "*"
       },
       {
-        Sid    = "AllowPatchGroupOperations"
+        # SendCommand must list BOTH document and instance ARNs in the SAME statement
+        Sid    = "AllowSendCommandRunPatchBaseline"
         Effect = "Allow"
-        Action = [
-          "patch:DescribePatches",
-          "patch:GetPatchBaseline",
-          "patch:DescribePatchBaselines",
-          "patch:DescribePatchGroups"
+        Action = ["ssm:SendCommand"]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunPatchBaseline",
+          "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"
         ]
-        Resource = "*"
       },
       {
-        Sid    = "AllowEC2Operations"
+        Sid    = "AllowSendCommandPowerShell"
+        Effect = "Allow"
+        Action = ["ssm:SendCommand"]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunPowerShellScript",
+          "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript",
+          "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"
+        ]
+      },
+      {
+        Sid    = "AllowEC2Describe"
         Effect = "Allow"
         Action = [
           "ec2:DescribeInstances",
@@ -82,55 +105,12 @@ resource "aws_iam_role_policy" "maintenance_window_patch_policy" {
           "s3:PutObject"
         ]
         Resource = "arn:aws:s3:::aws-ssm-${data.aws_caller_identity.current.account_id}-*/*"
-      }
-    ]
-  })
-}
-
-# -------------------------------------------------------
-# Policy for PowerShell Command Execution
-# -------------------------------------------------------
-resource "aws_iam_role_policy" "maintenance_window_powershell_policy" {
-  name_prefix = "${var.project_tag}-mw-ps-"
-  role        = aws_iam_role.maintenance_window_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "AllowPowerShellExecution"
-        Effect = "Allow"
-        Action = [
-          "ssm:SendCommand",
-          "ssm:GetCommandInvocation",
-          "ssm:ListCommandInvocations"
-        ]
-        Resource = [
-          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:document/AWS-RunPowerShellScript",
-          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:document/AWS-RunShellScript",
-          "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"
-        ]
-      },
-      {
-        Sid    = "AllowRunPatchBaseline"
-        Effect = "Allow"
-        Action = [
-          "ssm:SendCommand"
-        ]
-        Resource = [
-          "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunPatchBaseline",
-          "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"
-        ]
       },
       {
         Sid    = "AllowPassRoleToEC2"
         Effect = "Allow"
-        Action = [
-          "iam:PassRole"
-        ]
-        Resource = [
-          aws_iam_role.ssm_role.arn
-        ]
+        Action = ["iam:PassRole"]
+        Resource = [aws_iam_role.ssm_role.arn]
       }
     ]
   })
@@ -216,13 +196,7 @@ resource "aws_iam_role_policy" "maintenance_window_logs_policy" {
 }
 
 # -------------------------------------------------------
-# Data Sources for Account & Region Info
-# -------------------------------------------------------
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
-
-# -------------------------------------------------------
-# Output the Maintenance Window Role ARN
+# Outputs
 # -------------------------------------------------------
 output "maintenance_window_role_arn" {
   description = "ARN of the Maintenance Window IAM role"
