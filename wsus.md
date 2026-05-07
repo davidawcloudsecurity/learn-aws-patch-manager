@@ -1,3 +1,33 @@
+### Script to import list of cab
+```
+$WSUSServer = Get-WsusServer -Name "localhost" -PortNumber 8530
+$updateIds = @(
+    "da327f7c-5d64-43dc-9671-72723a5074f3",
+    "6836706d-08f4-477d-93c5-1645672a7709"
+)
+$wsus = Get-WsusServer
+$subscription = $wsus.GetSubscription()
+
+foreach ($updateId in $updateIds) {
+    Write-Host "Importing update ID: $updateId"
+    
+    try {
+        $wsus.ImportUpdateFromCatalogSite($updateId, @())
+        Write-Host "Import successful for $updateId"
+    } catch {
+        Write-Host "Import failed for $updateId : $($_.Exception.Message)"
+    }
+}
+
+# After imports complete, approve all
+$allComputers = $WSUSServer.GetComputerTargetGroups() | Where-Object { $_.Name -eq "All Computers" }
+$WSUSServer.GetUpdates() | 
+    Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | 
+    ForEach-Object { 
+        Write-Host "Approving: $($_.Title)"
+        $_.Approve("Install", $allComputers) 
+    }
+```
 ### Scripts to import manual download cab / KB into c:\wsus\wsuscontent
 ```
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
