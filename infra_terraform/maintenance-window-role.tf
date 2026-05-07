@@ -47,7 +47,9 @@ resource "aws_iam_role_policy" "maintenance_window_patch_policy" {
           "ssm:StartAutomationExecution",
           "ssm:SendCommand",
           "ssm:GetCommandInvocation",
-          "ssm:ListCommandInvocations"
+          "ssm:ListCommandInvocations",
+          "ssm:GetDeployablePatchSnapshotForInstance",
+          "ssm:DescribePatchGroupState"
         ]
         Resource = "*"
       },
@@ -129,6 +131,59 @@ resource "aws_iam_role_policy" "maintenance_window_powershell_policy" {
         Resource = [
           aws_iam_role.ssm_role.arn
         ]
+      }
+    ]
+  })
+}
+
+# -------------------------------------------------------
+# Policy for EC2 Messages Service
+# -------------------------------------------------------
+# Required for Systems Manager Agent communication with AWS Systems Manager service
+resource "aws_iam_role_policy" "maintenance_window_ec2messages_policy" {
+  name_prefix = "${var.project_tag}-mw-ec2msg-"
+  role        = aws_iam_role.maintenance_window_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowEC2MessagesService"
+        Effect = "Allow"
+        Action = [
+          "ec2messages:AcknowledgeMessage",
+          "ec2messages:DeleteMessage",
+          "ec2messages:FailMessage",
+          "ec2messages:GetEndpoint",
+          "ec2messages:GetMessages"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# -------------------------------------------------------
+# Policy for SSM Messages Service
+# -------------------------------------------------------
+# Required for session management and command execution
+resource "aws_iam_role_policy" "maintenance_window_ssmmessages_policy" {
+  name_prefix = "${var.project_tag}-mw-ssmmsg-"
+  role        = aws_iam_role.maintenance_window_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowSSMMessagesService"
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
       }
     ]
   })
