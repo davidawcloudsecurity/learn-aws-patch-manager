@@ -71,9 +71,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${{ secrets.PAT }}@github.com/davidawcloudsecurity/learn-aws-patch-manager.git                   
-          git fetch origin destroy/main
-          git checkout destroy/main
-          git merge origin/destroy/main
+          git fetch origin aws/destroy/main
+          git checkout aws/destroy/main
+          git merge origin/aws/destroy/main
           # Get the latest commit hash
           COMMIT_HASH=$(git rev-parse --short HEAD)
           git add state
