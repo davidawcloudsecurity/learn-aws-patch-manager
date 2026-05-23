@@ -59,7 +59,7 @@ BeforeSysprep.cmd → Sysprep runs (uses Unattend.xml) → Shuts down
 ```
 ### Step one 
 ```
-C:\ProgramData\Amazon\EC2-Windows\Launch\Sysprep\BeforeSysprep.cmd
+& "C:\ProgramData\Amazon\EC2-Windows\Launch\Sysprep\BeforeSysprep.cmd"
 
 C:\Windows\system32>reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnect
 ions /t REG_DWORD /d 1 /f
