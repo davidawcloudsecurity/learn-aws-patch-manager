@@ -62,7 +62,6 @@ variable "ad_admin_password" {
   description = "Admin password for Managed AD (set via TF_VAR_ad_admin_password env var)"
   type        = string
   sensitive   = true
-  default     = "YourStr0ngP@ss!"
 }
 
 variable "ad_edition" {
