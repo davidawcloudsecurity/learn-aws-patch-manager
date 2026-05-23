@@ -44,4 +44,45 @@ C:\ProgramData\Amazon\EC2Launch\sysprep
 ### EC2Launch v1 — Sysprep files at:
 C:\ProgramData\Amazon\EC2-Windows\Launch\Sysprep
 ### Knowledge Center: Use Sysprep for custom AMIs
+### Then click "Shutdown with Sysprep".
+```
+Flow
+BeforeSysprep.cmd → Sysprep runs (uses Unattend.xml) → Shuts down
+                                                          ↓
+                                                    Create AMI
+                                                          ↓
+                                              New instance boots
+                                                          ↓
+                                    SysprepSpecialize.cmd runs
+                                                          ↓
+                              Randomize-LocalAdminPassword.ps1 runs
+```
+### Step one 
+```
+C:\ProgramData\Amazon\EC2-Windows\Launch\Sysprep\BeforeSysprep.cmd
+
+C:\Windows\system32>reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnect
+ions /t REG_DWORD /d 1 /f
+The operation completed successfully.
+```
+### Step two
+```
+& "C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1" -Schedule
+
+TaskPath                                       TaskName                          State
+--------                                       --------                          -----
+\                                              Amazon Ec2 Launch - Instance I... Ready
+```
+### Step three. Shutdown
+```
+& "C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\SysprepInstance.ps1"
+
+C:\Windows\system32>reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnect
+ions /t REG_DWORD /d 1 /f
+The operation completed successfully.
+```
+### Alternative. Not tested
+```
+C:\Windows\System32\Sysprep\sysprep.exe /generalize /oobe /shutdown /unattend:"C:\ProgramData\Amazon\EC2-Windows\Launch\Sysprep\Unattend.xml"
+```
 https://repost.aws/knowledge-center/sysprep-create-install-ec2-windows-amis
