@@ -48,6 +48,12 @@ variable "create_vpc" {
   default     = true
 }
 
+variable "use_existing_iam" {
+  description = "Legacy variable (unused, kept for tfvars compatibility)"
+  type        = bool
+  default     = false
+}
+
 # ============================================================
 # AWS Managed Microsoft AD
 # ============================================================
