@@ -305,7 +305,7 @@ data "aws_ami" "windows_2019" {
 
 resource "aws_launch_template" "windows" {
   name_prefix   = "${var.project_tag}-win-"
-  image_id      = data.aws_ami.windows_2019.id
+  image_id      = local.ami_id
   instance_type = var.windows_instance_type
 
   iam_instance_profile {
