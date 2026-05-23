@@ -16,6 +16,7 @@ resource "aws_vpc" "main" {
 
 locals {
   vpc_id = var.create_vpc ? aws_vpc.main[0].id : data.aws_vpc.existing[0].id
+  ami_id = var.custom_ami_id != "" ? var.custom_ami_id : data.aws_ami.windows_2019[0].id
 }
 
 data "aws_vpc" "existing" {
@@ -284,6 +285,7 @@ resource "aws_security_group" "windows_asg" {
 # ============================================================
 
 data "aws_ami" "windows_2019" {
+  count       = var.custom_ami_id == "" ? 1 : 0
   most_recent = true
   owners      = ["amazon"]
 
@@ -303,7 +305,7 @@ data "aws_ami" "windows_2019" {
 
 resource "aws_launch_template" "windows" {
   name_prefix   = "${var.project_tag}-win-"
-  image_id      = data.aws_ami.windows_2019.id
+  image_id      = local.ami_id
   instance_type = var.windows_instance_type
 
   iam_instance_profile {
@@ -521,4 +523,9 @@ output "patch_baseline_id" {
 output "maintenance_window_id" {
   description = "SSM Maintenance Window ID"
   value       = aws_ssm_maintenance_window.patch.id
+}
+
+output "ami_id" {
+  description = "AMI ID used by the launch template"
+  value       = local.ami_id
 }
