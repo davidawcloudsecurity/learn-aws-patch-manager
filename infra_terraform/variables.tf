@@ -1,95 +1,133 @@
+# ============================================================
+# General
+# ============================================================
+
 variable "region" {
-  description = "Specifies the AWS region."
+  description = "AWS region"
   type        = string
   default     = "us-east-1"
 }
 
+variable "project_tag" {
+  description = "Project name tag used for all resources"
+  type        = string
+  default     = "learn-patch-asg-ad"
+}
+
+# ============================================================
+# VPC / Networking
+# ============================================================
+
 variable "main_cidr_block" {
-  description = "Specifies the main CIDR block for VPC-1 (RHEL)."
+  description = "VPC CIDR block"
   type        = string
   default     = "172.16.0.0/16"
 }
 
-variable "windows_vpc_cidr_block" {
-  description = "CIDR block for VPC-2 (Windows WSUS)."
-  type        = string
-  default     = "172.17.0.0/16"
-}
-
-variable "rhel_instance_subnet_cidr" {
-  description = "RHEL instance subnet CIDR for TGW routes"
-  type        = string
-  default     = "172.16.1.0/24"
-}
-
-variable "windows_instance_subnet_cidr" {
-  description = "Windows instance subnet CIDR for TGW routes"
-  type        = string
-  default     = "172.17.1.0/24"
-}
-
-variable "project_tag" {
-  description = "Specifies the name tag."
-  type        = string
-  default     = "learn-tf-aws-vpc"
-}
-
 variable "public_subnet_cidrs" {
+  description = "Public subnet CIDRs (one per AZ)"
   type        = list(string)
-  description = "Public Subnet CIDR values for VPC-1 (RHEL)"
-  default     = ["172.16.1.0/24", "172.16.3.0/24", "172.16.5.0/24"]
+  default     = ["172.16.1.0/24", "172.16.3.0/24"]
 }
 
 variable "private_subnet_cidrs" {
+  description = "Private subnet CIDRs (need 2 AZs for Managed AD)"
   type        = list(string)
-  description = "Private Subnet CIDR values for VPC-1 (RHEL)"
-  default     = ["172.16.2.0/24", "172.16.4.0/24", "172.16.6.0/24"]
-}
-
-variable "windows_vpc_public_subnet_cidrs" {
-  type        = list(string)
-  description = "Public Subnet CIDR values for VPC-2 (Windows)"
-  default     = ["172.17.1.0/24", "172.17.3.0/24", "172.17.5.0/24"]
-}
-
-variable "windows_vpc_private_subnet_cidrs" {
-  type        = list(string)
-  description = "Private Subnet CIDR values for VPC-2 (Windows)"
-  default     = ["172.17.2.0/24", "172.17.4.0/24", "172.17.6.0/24"]
+  default     = ["172.16.2.0/24", "172.16.4.0/24"]
 }
 
 variable "azs" {
+  description = "Availability Zones (minimum 2 for Managed AD)"
   type        = list(string)
-  description = "Availability Zones"
-  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
+  default     = ["us-east-1a", "us-east-1b"]
+}
+
+variable "custom_ami_id" {
+  description = "Custom AMI ID for the ASG. Leave empty to use latest Windows Server 2019 from Amazon."
+  type        = string
+  default     = "ami-0ca7038e6ff499fc0"
 }
 
 variable "create_vpc" {
-  description = "Whether to create VPC resources"
-  type        = bool
-  default     = true
-}
-
-variable "create_windows_instances" {
-  description = "Whether to create Windows instances"
-  type        = bool
-  default     = true
-}
-
-variable "create_route53" {
-  description = "Whether to create Route53 private zone"
+  description = "Whether to create VPC resources (false = use existing)"
   type        = bool
   default     = true
 }
 
 variable "use_existing_iam" {
-  description = "Set to true if IAM role already exists"
+  description = "Legacy variable (unused, kept for tfvars compatibility)"
   type        = bool
   default     = false
 }
 
-variable "create_tgw" {
-  description = "Whether to create Transit Gateways"
-  type        = bool
-  default     = true
+# ============================================================
+# AWS Managed Microsoft AD
+# ============================================================
+
+variable "ad_domain_name" {
+  description = "FQDN for the AWS Managed Microsoft AD"
+  type        = string
+  default     = "corp.learn-patch.local"
+}
+
+variable "ad_admin_password" {
+  description = "Admin password for Managed AD (set via TF_VAR_ad_admin_password env var)"
+  type        = string
+  sensitive   = true
+}
+
+variable "ad_edition" {
+  description = "Managed AD edition: Standard or Enterprise"
+  type        = string
+  default     = "Standard"
+}
+
+# ============================================================
+# Windows ASG
+# ============================================================
+
+variable "windows_instance_type" {
+  description = "Instance type for Windows ASG instances"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "asg_desired_capacity" {
+  description = "Desired number of instances in the ASG"
+  type        = number
+  default     = 2
+}
+
+variable "asg_min_size" {
+  description = "Minimum ASG size"
+  type        = number
+  default     = 1
+}
+
+variable "asg_max_size" {
+  description = "Maximum ASG size"
+  type        = number
+  default     = 4
+}
+
+# ============================================================
+# SSM Patch Manager
+# ============================================================
+
+variable "patch_schedule" {
+  description = "Cron expression for the patch maintenance window (UTC)"
+  type        = string
+  default     = "cron(0 2 ? * SUN *)"
+}
+
+variable "patch_window_duration" {
+  description = "Maintenance window duration in hours"
+  type        = number
+  default     = 3
+}
+
+variable "patch_window_cutoff" {
+  description = "Hours before window end to stop scheduling new tasks"
+  type        = number
+  default     = 1
 }
