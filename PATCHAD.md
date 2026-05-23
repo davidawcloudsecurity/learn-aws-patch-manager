@@ -95,3 +95,8 @@ EC2Launch log
 C:\ProgramData\Amazon\EC2-Windows\Launch\Log\Ec2Launch.log
 ```
 https://repost.aws/knowledge-center/sysprep-create-install-ec2-windows-amis
+
+### SSM Doc to create image
+```
+aws ssm describe-document --name "AWS-CreateImage" --output text
+```
