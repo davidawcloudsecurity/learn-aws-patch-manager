@@ -61,7 +61,7 @@ resource "aws_nat_gateway" "nat" {
   count         = var.create_vpc ? 1 : 0
   allocation_id = aws_eip.nat[0].id
   subnet_id     = aws_subnet.public[0].id
-  tags          = { Name = "${var.project_tag}-nat-gw" }
+  tags          = { Name = "${var.project_tag}-nat-gw", "auto-delete" = "no" }
   depends_on    = [aws_internet_gateway.igw]
 }
 
@@ -112,7 +112,7 @@ resource "aws_directory_service_directory" "managed_ad" {
     subnet_ids = aws_subnet.private[*].id
   }
 
-  tags = { Name = "${var.project_tag}-managed-ad" }
+  tags = { Name = "${var.project_tag}-managed-ad", "auto-delete" = "no" }
 }
 
 # Point VPC DNS to Managed AD domain controllers
@@ -317,10 +317,11 @@ resource "aws_launch_template" "windows" {
   tag_specifications {
     resource_type = "instance"
     tags = {
-      Name       = "${var.project_tag}-win-asg"
-      ADJoin     = "true"
-      PatchGroup = "Windows-Production"
-      OS         = "Windows Server 2019"
+      Name          = "${var.project_tag}-win-asg"
+      ADJoin        = "true"
+      PatchGroup    = "Windows-Production"
+      OS            = "Windows Server 2019"
+      "auto-delete" = "no"
     }
   }
 
@@ -387,6 +388,11 @@ resource "aws_autoscaling_group" "windows" {
   tag {
     key                 = "ADJoin"
     value               = "true"
+    propagate_at_launch = true
+  }
+  tag {
+    key                 = "auto-delete"
+    value               = "no"
     propagate_at_launch = true
   }
 
