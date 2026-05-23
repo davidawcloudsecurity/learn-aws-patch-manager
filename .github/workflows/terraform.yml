@@ -48,7 +48,7 @@ jobs:
                   echo "Found existing state, copying to working directory..."
                   cp state/terraform.tfstate ./terraform.tfstate
               fi
-              git checkout main
+              git checkout SR-216
           fi
           
           terraform init
