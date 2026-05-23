@@ -39,5 +39,9 @@ https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sysprep-using-ec2launchv2.ht
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2launch-sysprep.html
 ### Troubleshoot Sysprep issues
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sysprep-troubleshoot.html
+### Use EC2Launch v2 (recommended) — Sysprep files at:
+C:\ProgramData\Amazon\EC2Launch\sysprep
+### EC2Launch v1 — Sysprep files at:
+C:\ProgramData\Amazon\EC2-Windows\Launch\Sysprep
 ### Knowledge Center: Use Sysprep for custom AMIs
 https://repost.aws/knowledge-center/sysprep-create-install-ec2-windows-amis
