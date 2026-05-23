@@ -16,6 +16,7 @@ resource "aws_vpc" "main" {
 
 locals {
   vpc_id = var.create_vpc ? aws_vpc.main[0].id : data.aws_vpc.existing[0].id
+  ami_id = var.custom_ami_id != "" ? var.custom_ami_id : data.aws_ami.windows_2019[0].id
 }
 
 data "aws_vpc" "existing" {
