@@ -85,4 +85,13 @@ The operation completed successfully.
 ```
 C:\Windows\System32\Sysprep\sysprep.exe /generalize /oobe /shutdown /unattend:"C:\ProgramData\Amazon\EC2-Windows\Launch\Sysprep\Unattend.xml"
 ```
+### Sysprep logs
+```
+Sysprep log
+C:\Windows\System32\Sysprep\Panther\setuperr.log
+Sysprep main
+C:\Windows\System32\Sysprep\Panther\setupact.log
+EC2Launch log
+C:\ProgramData\Amazon\EC2-Windows\Launch\Log\Ec2Launch.log
+```
 https://repost.aws/knowledge-center/sysprep-create-install-ec2-windows-amis
