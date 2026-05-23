@@ -8,7 +8,7 @@ create_vpc = true
 # Managed AD
 ad_domain_name = "corp.learn-patch.local"
 ad_edition     = "Standard"
-ad_admin_password ='YourP@ssw0rd!'
+ad_admin_password = "YourP@ssw0rd!"
 # ad_admin_password — set via: export TF_VAR_ad_admin_password='YourP@ssw0rd!'
 
 # ASG
