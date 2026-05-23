@@ -1,659 +1,524 @@
-# Define AWS as the provider with the specified region.
 provider "aws" {
   region = var.region
 }
 
-# -------------------------------------------------------
-# VPC-1: RHEL (172.16.0.0/16)
-# -------------------------------------------------------
-resource "aws_vpc" "demo_main_vpc" {
+# ============================================================
+# VPC + Networking (2 AZs required for Managed AD)
+# ============================================================
+
+resource "aws_vpc" "main" {
   count                = var.create_vpc ? 1 : 0
   cidr_block           = var.main_cidr_block
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = {
-    Name = "${var.project_tag}-rhel-vpc"
-  }
+  tags                 = { Name = var.project_tag }
 }
 
-resource "aws_internet_gateway" "demo_igw" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.demo_main_vpc[0].id
-  tags = {
-    Name = "${var.project_tag}-rhel-igw"
-  }
+locals {
+  vpc_id = var.create_vpc ? aws_vpc.main[0].id : data.aws_vpc.existing[0].id
 }
 
-resource "aws_subnet" "public_subnet_01" {
-  count                   = var.create_vpc ? length(var.public_subnet_cidrs) : 0
-  vpc_id                  = aws_vpc.demo_main_vpc[0].id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = var.azs[count.index]
-  map_public_ip_on_launch = true
-  tags = {
-    Name = "${var.project_tag}-rhel-pb-sub-01"
-  }
-}
-
-resource "aws_subnet" "private_subnet_01" {
-  count             = var.create_vpc ? length(var.private_subnet_cidrs) : 0
-  vpc_id            = aws_vpc.demo_main_vpc[0].id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = var.azs[count.index]
-  tags = {
-    Name = "${var.project_tag}-rhel-pv-sub-01"
-  }
-}
-
-resource "aws_route_table" "public_rt" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.demo_main_vpc[0].id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.demo_igw[0].id
-  }
-
-  route {
-    cidr_block         = var.windows_instance_subnet_cidr
-    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
-  }
-
-  tags = {
-    Name = "${var.project_tag}-rhel-public-rt"
-  }
-}
-
-resource "aws_route_table_association" "public_rta" {
-  count          = var.create_vpc ? length(aws_subnet.public_subnet_01) : 0
-  subnet_id      = aws_subnet.public_subnet_01[count.index].id
-  route_table_id = aws_route_table.public_rt[0].id
-}
-
-# -------------------------------------------------------
-# VPC-2: Windows WSUS (172.17.0.0/16)
-# -------------------------------------------------------
-resource "aws_vpc" "windows_vpc" {
-  count                = var.create_vpc ? 1 : 0
-  cidr_block           = var.windows_vpc_cidr_block
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  tags = {
-    Name = "${var.project_tag}-windows-vpc"
-  }
-}
-
-resource "aws_internet_gateway" "windows_igw" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.windows_vpc[0].id
-  tags = {
-    Name = "${var.project_tag}-windows-igw"
-  }
-}
-
-resource "aws_subnet" "windows_public_subnet" {
-  count                   = var.create_vpc ? length(var.windows_vpc_public_subnet_cidrs) : 0
-  vpc_id                  = aws_vpc.windows_vpc[0].id
-  cidr_block              = var.windows_vpc_public_subnet_cidrs[count.index]
-  availability_zone       = var.azs[count.index]
-  map_public_ip_on_launch = true
-  tags = {
-    Name = "${var.project_tag}-windows-pb-sub-01"
-  }
-}
-
-resource "aws_subnet" "windows_private_subnet" {
-  count             = var.create_vpc ? length(var.windows_vpc_private_subnet_cidrs) : 0
-  vpc_id            = aws_vpc.windows_vpc[0].id
-  cidr_block        = var.windows_vpc_private_subnet_cidrs[count.index]
-  availability_zone = var.azs[count.index]
-  tags = {
-    Name = "${var.project_tag}-windows-pv-sub-01"
-  }
-}
-
-resource "aws_route_table" "windows_public_rt" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.windows_vpc[0].id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.windows_igw[0].id
-  }
-
-  route {
-    cidr_block         = var.rhel_instance_subnet_cidr
-    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
-  }
-
-  tags = {
-    Name = "${var.project_tag}-windows-public-rt"
-  }
-}
-
-resource "aws_route_table_association" "windows_public_rta" {
-  count          = var.create_vpc ? length(aws_subnet.windows_public_subnet) : 0
-  subnet_id      = aws_subnet.windows_public_subnet[count.index].id
-  route_table_id = aws_route_table.windows_public_rt[0].id
-}
-
-# -------------------------------------------------------
-# Transit Gateway - Inbound
-# -------------------------------------------------------
-resource "aws_ec2_transit_gateway" "tgw_inbound" {
-  count       = var.create_tgw ? 1 : 0
-  description = "Inbound Transit Gateway"
-  tags = {
-    Name = "${var.project_tag}-tgw-inbound"
-  }
-}
-
-resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_inbound_rhel" {
-  count              = var.create_tgw && var.create_vpc ? 1 : 0
-  transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
-  vpc_id             = aws_vpc.demo_main_vpc[0].id
-  subnet_ids         = aws_subnet.public_subnet_01[*].id
-  tags = {
-    Name = "${var.project_tag}-tgw-inbound-rhel-attach"
-  }
-}
-
-resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_inbound_windows" {
-  count              = var.create_tgw && var.create_vpc ? 1 : 0
-  transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
-  vpc_id             = aws_vpc.windows_vpc[0].id
-  subnet_ids         = aws_subnet.windows_public_subnet[*].id
-  tags = {
-    Name = "${var.project_tag}-tgw-inbound-windows-attach"
-  }
-}
-
-# -------------------------------------------------------
-# Transit Gateway - Outbound
-# -------------------------------------------------------
-resource "aws_ec2_transit_gateway" "tgw_outbound" {
-  count       = var.create_tgw ? 1 : 0
-  description = "Outbound Transit Gateway"
-  tags = {
-    Name = "${var.project_tag}-tgw-outbound"
-  }
-}
-
-resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_outbound_rhel" {
-  count              = var.create_tgw && var.create_vpc ? 1 : 0
-  transit_gateway_id = aws_ec2_transit_gateway.tgw_outbound[0].id
-  vpc_id             = aws_vpc.demo_main_vpc[0].id
-  subnet_ids         = aws_subnet.public_subnet_01[*].id
-  tags = {
-    Name = "${var.project_tag}-tgw-outbound-rhel-attach"
-  }
-}
-
-resource "aws_ec2_transit_gateway_vpc_attachment" "tgw_outbound_windows" {
-  count              = var.create_tgw && var.create_vpc ? 1 : 0
-  transit_gateway_id = aws_ec2_transit_gateway.tgw_outbound[0].id
-  vpc_id             = aws_vpc.windows_vpc[0].id
-  subnet_ids         = aws_subnet.windows_public_subnet[*].id
-  tags = {
-    Name = "${var.project_tag}-tgw-outbound-windows-attach"
-  }
-}
-
-resource "aws_ec2_transit_gateway_route" "tgw_inbound_rhel_to_windows" {
-  count                          = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_inbound[0].association_default_route_table_id
-  destination_cidr_block         = var.windows_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_windows[0].id
-}
-
-resource "aws_ec2_transit_gateway_route" "tgw_inbound_windows_to_rhel" {
-  count                          = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_inbound[0].association_default_route_table_id
-  destination_cidr_block         = var.rhel_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_inbound_rhel[0].id
-}
-
-resource "aws_ec2_transit_gateway_route" "tgw_outbound_rhel_to_windows" {
-  count                          = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_outbound[0].association_default_route_table_id
-  destination_cidr_block         = var.windows_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_windows[0].id
-}
-
-resource "aws_ec2_transit_gateway_route" "tgw_outbound_windows_to_rhel" {
-  count                          = var.create_tgw ? 1 : 0
-  transit_gateway_route_table_id = aws_ec2_transit_gateway.tgw_outbound[0].association_default_route_table_id
-  destination_cidr_block         = var.rhel_instance_subnet_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.tgw_outbound_rhel[0].id
-}
-
-resource "aws_route_table" "rhel_private_tgw" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.demo_main_vpc[0].id
-
-  route {
-    cidr_block         = var.windows_vpc_cidr_block
-    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
-  }
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.demo_igw[0].id
-  }
-
-  tags = {
-    Name = "${var.project_tag}-rhel-private-tgw-rt"
-  }
-}
-
-resource "aws_route_table_association" "rhel_private_tgw_assoc" {
-  count          = var.create_vpc ? length(aws_subnet.private_subnet_01) : 0
-  subnet_id      = aws_subnet.private_subnet_01[count.index].id
-  route_table_id = aws_route_table.rhel_private_tgw[0].id
-}
-
-resource "aws_route_table" "windows_private_tgw" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.windows_vpc[0].id
-
-  route {
-    cidr_block         = var.main_cidr_block
-    transit_gateway_id = aws_ec2_transit_gateway.tgw_inbound[0].id
-  }
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.windows_igw[0].id
-  }
-
-  tags = {
-    Name = "${var.project_tag}-windows-private-tgw-rt"
-  }
-}
-
-resource "aws_route_table_association" "windows_private_tgw_assoc" {
-  count          = var.create_vpc ? length(aws_subnet.windows_private_subnet) : 0
-  subnet_id      = aws_subnet.windows_private_subnet[count.index].id
-  route_table_id = aws_route_table.windows_private_tgw[0].id
-}
-
-# -------------------------------------------------------
-# Route53 Private Zone (attached to VPC-1)
-# -------------------------------------------------------
-resource "aws_route53_zone" "private" {
-  count = var.create_route53 ? 1 : 0
-  name  = "davidawcloudsecurity.com"
-
-  vpc {
-    vpc_id = aws_vpc.windows_vpc[0].id
-  }
-
-  tags = {
-    Name = "${var.project_tag}-private-zone"
-  }
-}
-
-resource "aws_route53_zone_association" "rhel_vpc" {
-  count   = var.create_route53 && var.enable_rhel_instances && var.create_vpc ? 1 : 0
-  zone_id = aws_route53_zone.private[0].zone_id
-  vpc_id  = aws_vpc.demo_main_vpc[0].id
-}
-
-# -------------------------------------------------------
-# Data sources for existing resources (when create_vpc=false)
-# -------------------------------------------------------
 data "aws_vpc" "existing" {
   count = var.create_vpc ? 0 : 1
   filter {
     name   = "tag:Name"
-    values = ["${var.project_tag}-rhel-vpc"]
+    values = [var.project_tag]
   }
 }
 
-data "aws_subnets" "existing_public" {
-  count = var.create_vpc ? 0 : 1
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.existing[0].id]
-  }
-  filter {
-    name   = "tag:Name"
-    values = ["${var.project_tag}-rhel-pb-sub-01"]
-  }
+resource "aws_internet_gateway" "igw" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = local.vpc_id
+  tags   = { Name = "${var.project_tag}-igw" }
 }
 
-# -------------------------------------------------------
-# VPC Flow Logs
-# -------------------------------------------------------
-resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-  count             = var.create_vpc ? 1 : 0
-  name              = "/aws/vpc/flow-logs/${var.project_tag}"
-  retention_in_days = 30
+resource "aws_subnet" "public" {
+  count                   = var.create_vpc ? length(var.public_subnet_cidrs) : 0
+  vpc_id                  = local.vpc_id
+  cidr_block              = var.public_subnet_cidrs[count.index]
+  availability_zone       = var.azs[count.index]
+  map_public_ip_on_launch = true
+  tags                    = { Name = "${var.project_tag}-public-${var.azs[count.index]}" }
 }
 
-resource "aws_iam_role" "vpc_flow_log_role" {
-  count = var.create_vpc ? 1 : 0
-  name  = "${var.project_tag}-vpc-flow-log-role"
+resource "aws_subnet" "private" {
+  count             = var.create_vpc ? length(var.private_subnet_cidrs) : 0
+  vpc_id            = local.vpc_id
+  cidr_block        = var.private_subnet_cidrs[count.index]
+  availability_zone = var.azs[count.index]
+  tags              = { Name = "${var.project_tag}-private-${var.azs[count.index]}" }
+}
+
+# NAT Gateway — ASG instances in private subnets need outbound for patching
+resource "aws_eip" "nat" {
+  count  = var.create_vpc ? 1 : 0
+  domain = "vpc"
+  tags   = { Name = "${var.project_tag}-nat-eip" }
+}
+
+resource "aws_nat_gateway" "nat" {
+  count         = var.create_vpc ? 1 : 0
+  allocation_id = aws_eip.nat[0].id
+  subnet_id     = aws_subnet.public[0].id
+  tags          = { Name = "${var.project_tag}-nat-gw" }
+  depends_on    = [aws_internet_gateway.igw]
+}
+
+resource "aws_route_table" "public" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = local.vpc_id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw[0].id
+  }
+  tags = { Name = "${var.project_tag}-public-rt" }
+}
+
+resource "aws_route_table_association" "public" {
+  count          = var.create_vpc ? length(aws_subnet.public) : 0
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public[0].id
+}
+
+resource "aws_route_table" "private" {
+  count  = var.create_vpc ? 1 : 0
+  vpc_id = local.vpc_id
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat[0].id
+  }
+  tags = { Name = "${var.project_tag}-private-rt" }
+}
+
+resource "aws_route_table_association" "private" {
+  count          = var.create_vpc ? length(aws_subnet.private) : 0
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private[0].id
+}
+
+# ============================================================
+# AWS Managed Microsoft AD
+# ============================================================
+
+resource "aws_directory_service_directory" "managed_ad" {
+  name     = var.ad_domain_name
+  password = var.ad_admin_password
+  edition  = var.ad_edition
+  type     = "MicrosoftAD"
+
+  vpc_settings {
+    vpc_id     = local.vpc_id
+    subnet_ids = aws_subnet.private[*].id
+  }
+
+  tags = { Name = "${var.project_tag}-managed-ad" }
+}
+
+# Point VPC DNS to Managed AD domain controllers
+resource "aws_vpc_dhcp_options" "ad_dns" {
+  domain_name         = var.ad_domain_name
+  domain_name_servers = aws_directory_service_directory.managed_ad.dns_ip_addresses
+  tags                = { Name = "${var.project_tag}-ad-dhcp" }
+}
+
+resource "aws_vpc_dhcp_options_association" "ad_dns" {
+  vpc_id          = local.vpc_id
+  dhcp_options_id = aws_vpc_dhcp_options.ad_dns.id
+}
+
+# ============================================================
+# IAM Role — EC2 instances need SSM + Directory Service access
+# ============================================================
+
+resource "aws_iam_role" "ec2_ssm_ad" {
+  name = "${var.project_tag}-ec2-ssm-ad-role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
-      Principal = { Service = "vpc-flow-logs.amazonaws.com" }
+      Principal = { Service = "ec2.amazonaws.com" }
     }]
   })
+
+  tags = { Name = "${var.project_tag}-ec2-ssm-ad-role" }
 }
 
-resource "aws_iam_role_policy" "vpc_flow_log_policy" {
-  count = var.create_vpc ? 1 : 0
-  role  = aws_iam_role.vpc_flow_log_role[0].id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams"
-      ]
-      Resource = "*"
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ec2_ssm_ad.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_directory" {
+  role       = aws_iam_role.ec2_ssm_ad.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMDirectoryServiceAccess"
+}
+
+resource "aws_iam_instance_profile" "ec2_ssm_ad" {
+  name = "${var.project_tag}-ec2-ssm-ad-profile"
+  role = aws_iam_role.ec2_ssm_ad.name
+}
+
+# ============================================================
+# SSM Document + Association — Auto AD Domain Join
+# ============================================================
+
+resource "aws_ssm_document" "ad_join" {
+  name          = "${var.project_tag}-ad-domain-join"
+  document_type = "Command"
+
+  content = jsonencode({
+    schemaVersion = "2.2"
+    description   = "Join Windows instance to AWS Managed AD"
+    mainSteps = [{
+      action = "aws:domainJoin"
+      name   = "domainJoin"
+      inputs = {
+        directoryId    = aws_directory_service_directory.managed_ad.id
+        directoryName  = var.ad_domain_name
+        dnsIpAddresses = aws_directory_service_directory.managed_ad.dns_ip_addresses
+      }
     }]
   })
+
+  tags = { Name = "${var.project_tag}-ad-join-doc" }
 }
 
-resource "aws_flow_log" "rhel_vpc" {
-  count           = var.create_vpc ? 1 : 0
-  vpc_id          = aws_vpc.demo_main_vpc[0].id
-  traffic_type    = "ALL"
-  iam_role_arn    = aws_iam_role.vpc_flow_log_role[0].arn
-  log_destination = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
-  tags = {
-    Name = "${var.project_tag}-rhel-vpc-flow-log"
+# Any instance tagged ADJoin=true will auto-join the domain
+resource "aws_ssm_association" "ad_join" {
+  name = aws_ssm_document.ad_join.name
+
+  targets {
+    key    = "tag:ADJoin"
+    values = ["true"]
+  }
+
+  depends_on = [aws_directory_service_directory.managed_ad]
+}
+
+# ============================================================
+# Security Group — Windows ASG (AD + SSM + Patching)
+# ============================================================
+
+resource "aws_security_group" "windows_asg" {
+  name        = "${var.project_tag}-windows-asg-sg"
+  description = "Windows ASG instances: AD-joined, SSM patching"
+  vpc_id      = local.vpc_id
+
+  # RDP from within VPC only
+  ingress {
+    from_port   = 3389
+    to_port     = 3389
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "RDP from VPC"
+  }
+
+  # WinRM for SSM
+  ingress {
+    from_port   = 5985
+    to_port     = 5986
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "WinRM"
+  }
+
+  # AD protocols (DNS, Kerberos, LDAP, SMB, LDAPS)
+  ingress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "DNS TCP"
+  }
+  ingress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "DNS UDP"
+  }
+  ingress {
+    from_port   = 88
+    to_port     = 88
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "Kerberos"
+  }
+  ingress {
+    from_port   = 389
+    to_port     = 389
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "LDAP"
+  }
+  ingress {
+    from_port   = 445
+    to_port     = 445
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "SMB"
+  }
+  ingress {
+    from_port   = 636
+    to_port     = 636
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "LDAPS"
+  }
+
+  # All outbound (patching + SSM endpoints)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_tag}-windows-asg-sg" }
+}
+
+# ============================================================
+# Windows Server 2019 AMI (latest)
+# ============================================================
+
+data "aws_ami" "windows_2019" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["Windows_Server-2019-English-Full-Base-*"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 
-resource "aws_flow_log" "windows_vpc" {
-  count           = var.create_vpc ? 1 : 0
-  vpc_id          = aws_vpc.windows_vpc[0].id
-  traffic_type    = "ALL"
-  iam_role_arn    = aws_iam_role.vpc_flow_log_role[0].arn
-  log_destination = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
-  tags = {
-    Name = "${var.project_tag}-windows-vpc-flow-log"
+# ============================================================
+# Launch Template
+# ============================================================
+
+resource "aws_launch_template" "windows" {
+  name_prefix   = "${var.project_tag}-win-"
+  image_id      = data.aws_ami.windows_2019.id
+  instance_type = var.windows_instance_type
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_ssm_ad.name
+  }
+
+  vpc_security_group_ids = [aws_security_group.windows_asg.id]
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name       = "${var.project_tag}-win-asg"
+      ADJoin     = "true"
+      PatchGroup = "Windows-Production"
+      OS         = "Windows Server 2019"
+    }
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags          = { Name = "${var.project_tag}-win-vol" }
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  user_data = base64encode(<<-EOF
+    <powershell>
+    Start-Service AmazonSSMAgent
+    Set-Service AmazonSSMAgent -StartupType Automatic
+    Write-Output "Bootstrap complete. AD join handled by SSM Association."
+    </powershell>
+  EOF
+  )
+
+  lifecycle { create_before_destroy = true }
+
+  tags = { Name = "${var.project_tag}-win-launch-template" }
+}
+
+# ============================================================
+# Auto Scaling Group
+# ============================================================
+
+resource "aws_autoscaling_group" "windows" {
+  name                      = "${var.project_tag}-windows-asg"
+  desired_capacity          = var.asg_desired_capacity
+  min_size                  = var.asg_min_size
+  max_size                  = var.asg_max_size
+  vpc_zone_identifier       = aws_subnet.private[*].id
+  health_check_type         = "EC2"
+  wait_for_capacity_timeout = "15m"
+
+  launch_template {
+    id      = aws_launch_template.windows.id
+    version = "$Latest"
+  }
+
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "${var.project_tag}-win-asg"
+    propagate_at_launch = true
+  }
+  tag {
+    key                 = "PatchGroup"
+    value               = "Windows-Production"
+    propagate_at_launch = true
+  }
+  tag {
+    key                 = "ADJoin"
+    value               = "true"
+    propagate_at_launch = true
+  }
+
+  depends_on = [
+    aws_directory_service_directory.managed_ad,
+    aws_ssm_association.ad_join,
+    aws_nat_gateway.nat
+  ]
+}
+
+# ============================================================
+# SSM Patch Baseline (Windows)
+# ============================================================
+
+resource "aws_ssm_patch_baseline" "windows" {
+  name             = "${var.project_tag}-windows-baseline"
+  operating_system = "WINDOWS"
+
+  approval_rule {
+    approve_after_days = 7
+    compliance_level   = "CRITICAL"
+
+    patch_filter {
+      key    = "CLASSIFICATION"
+      values = ["CriticalUpdates", "SecurityUpdates"]
+    }
+    patch_filter {
+      key    = "MSRC_SEVERITY"
+      values = ["Critical", "Important"]
+    }
+  }
+
+  approval_rule {
+    approve_after_days = 14
+    compliance_level   = "HIGH"
+
+    patch_filter {
+      key    = "CLASSIFICATION"
+      values = ["UpdateRollups", "Updates"]
+    }
+  }
+
+  tags = { Name = "${var.project_tag}-windows-patch-baseline" }
+}
+
+resource "aws_ssm_patch_group" "windows" {
+  baseline_id = aws_ssm_patch_baseline.windows.id
+  patch_group = "Windows-Production"
+}
+
+# ============================================================
+# SSM Maintenance Window + Task
+# ============================================================
+
+resource "aws_ssm_maintenance_window" "patch" {
+  name                       = "${var.project_tag}-patch-window"
+  schedule                   = var.patch_schedule
+  duration                   = var.patch_window_duration
+  cutoff                     = var.patch_window_cutoff
+  allow_unassociated_targets = false
+  tags                       = { Name = "${var.project_tag}-patch-window" }
+}
+
+resource "aws_ssm_maintenance_window_target" "patch" {
+  window_id     = aws_ssm_maintenance_window.patch.id
+  name          = "${var.project_tag}-patch-targets"
+  resource_type = "INSTANCE"
+
+  targets {
+    key    = "tag:PatchGroup"
+    values = ["Windows-Production"]
   }
 }
 
-# -------------------------------------------------------
-# NACLs - RHEL VPC
-# -------------------------------------------------------
-resource "aws_network_acl" "rhel_nacl" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.demo_main_vpc[0].id
-  tags   = { Name = "${var.project_tag}-rhel-nacl" }
-}
+resource "aws_ssm_maintenance_window_task" "patch" {
+  window_id       = aws_ssm_maintenance_window.patch.id
+  name            = "${var.project_tag}-run-patch-baseline"
+  task_type       = "RUN_COMMAND"
+  task_arn        = "AWS-RunPatchBaseline"
+  priority        = 1
+  max_concurrency = "50%"
+  max_errors      = "25%"
 
-resource "aws_network_acl_rule" "rhel_inbound_http" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  rule_number    = 100
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 80
-  to_port        = 80
-}
+  targets {
+    key    = "WindowTargetIds"
+    values = [aws_ssm_maintenance_window_target.patch.id]
+  }
 
-resource "aws_network_acl_rule" "rhel_inbound_https" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  rule_number    = 110
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 443
-  to_port        = 443
-}
+  task_invocation_parameters {
+    run_command_parameters {
+      timeout_seconds = 3600
 
-resource "aws_network_acl_rule" "rhel_inbound_ephemeral" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  rule_number    = 120
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 1024
-  to_port        = 65535
-}
-
-resource "aws_network_acl_rule" "rhel_outbound_http" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  rule_number    = 100
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 80
-  to_port        = 80
-}
-
-resource "aws_network_acl_rule" "rhel_outbound_https" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  rule_number    = 110
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 443
-  to_port        = 443
-}
-
-resource "aws_network_acl_rule" "rhel_outbound_ephemeral" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  rule_number    = 120
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 1024
-  to_port        = 65535
-}
-
-resource "aws_network_acl_association" "rhel_public" {
-  count          = var.create_vpc ? length(aws_subnet.public_subnet_01) : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  subnet_id      = aws_subnet.public_subnet_01[count.index].id
-}
-
-resource "aws_network_acl_association" "rhel_private" {
-  count          = var.create_vpc ? length(aws_subnet.private_subnet_01) : 0
-  network_acl_id = aws_network_acl.rhel_nacl[0].id
-  subnet_id      = aws_subnet.private_subnet_01[count.index].id
-}
-
-# -------------------------------------------------------
-# NACLs - Windows VPC
-# -------------------------------------------------------
-resource "aws_network_acl" "windows_nacl" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = aws_vpc.windows_vpc[0].id
-  tags   = { Name = "${var.project_tag}-windows-nacl" }
-}
-
-resource "aws_network_acl_rule" "windows_inbound_http" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  rule_number    = 100
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 80
-  to_port        = 80
-}
-
-resource "aws_network_acl_rule" "windows_inbound_https" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  rule_number    = 110
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 443
-  to_port        = 443
-}
-
-resource "aws_network_acl_rule" "windows_inbound_ephemeral" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  rule_number    = 120
-  egress         = false
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 1024
-  to_port        = 65535
-}
-
-resource "aws_network_acl_rule" "windows_outbound_http" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  rule_number    = 100
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 80
-  to_port        = 80
-}
-
-resource "aws_network_acl_rule" "windows_outbound_https" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  rule_number    = 110
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 443
-  to_port        = 443
-}
-
-resource "aws_network_acl_rule" "windows_outbound_ephemeral" {
-  count          = var.create_vpc ? 1 : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  rule_number    = 120
-  egress         = true
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = "0.0.0.0/0"
-  from_port      = 1024
-  to_port        = 65535
-}
-
-resource "aws_network_acl_association" "windows_public" {
-  count          = var.create_vpc ? length(aws_subnet.windows_public_subnet) : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  subnet_id      = aws_subnet.windows_public_subnet[count.index].id
-}
-
-resource "aws_network_acl_association" "windows_private" {
-  count          = var.create_vpc ? length(aws_subnet.windows_private_subnet) : 0
-  network_acl_id = aws_network_acl.windows_nacl[0].id
-  subnet_id      = aws_subnet.windows_private_subnet[count.index].id
-}
-
-# -------------------------------------------------------
-# SNS Topic for CloudWatch Alarm Actions (test target)
-# -------------------------------------------------------
-resource "aws_sns_topic" "alarm_notifications" {
-  name = "${var.project_tag}-alarm-notifications"
-  tags = {
-    Name = "${var.project_tag}-alarm-notifications"
+      parameter {
+        name   = "Operation"
+        values = ["Install"]
+      }
+      parameter {
+        name   = "RebootOption"
+        values = ["RebootIfNeeded"]
+      }
+    }
   }
 }
 
-# -------------------------------------------------------
-# CloudWatch Alarms — for testing somealarm.sh
-# These have AlarmActions but NO InsufficientDataActions,
-# so the bash script should add them.
-# -------------------------------------------------------
+# ============================================================
+# Outputs
+# ============================================================
 
-# Alarm 1: VPC Flow Log incoming bytes (uses the existing log group)
-resource "aws_cloudwatch_metric_alarm" "vpc_flow_log_bytes" {
-  count               = var.create_vpc ? 1 : 0
-  alarm_name          = "${var.project_tag}-vpc-flow-log-incoming-bytes"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "IncomingBytes"
-  namespace           = "AWS/Logs"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1000000
-  alarm_description   = "Alert when VPC flow log incoming bytes exceed 1MB in 5 min"
-  actions_enabled     = true
-
-  dimensions = {
-    LogGroupName = "/aws/vpc/flow-logs/${var.project_tag}"
-  }
-
-  alarm_actions = [aws_sns_topic.alarm_notifications.arn]
-  # Intentionally NO insufficient_data_actions — somealarm.sh should add these
-
-  tags = {
-    Name = "${var.project_tag}-vpc-flow-log-bytes-alarm"
-  }
+output "vpc_id" {
+  description = "VPC ID"
+  value       = local.vpc_id
 }
 
-# Alarm 2: High rejected packets on RHEL VPC (synthetic/test metric)
-resource "aws_cloudwatch_metric_alarm" "high_rejected_packets" {
-  alarm_name          = "${var.project_tag}-high-rejected-packets"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 2
-  metric_name         = "RejectedPackets"
-  namespace           = "CustomVPC/FlowMetrics"
-  period              = 60
-  statistic           = "Sum"
-  threshold           = 100
-  alarm_description   = "Alert when rejected packets >= 100 over 2 evaluation periods"
-  actions_enabled     = true
-
-  dimensions = {
-    VpcId = "test-rhel-vpc"
-  }
-
-  alarm_actions = [aws_sns_topic.alarm_notifications.arn]
-  # Intentionally NO insufficient_data_actions
-
-  tags = {
-    Name = "${var.project_tag}-rejected-packets-alarm"
-  }
+output "managed_ad_id" {
+  description = "Managed AD directory ID"
+  value       = aws_directory_service_directory.managed_ad.id
 }
 
-# Alarm 3: Transit Gateway bytes out (no dimensions, simple alarm)
-resource "aws_cloudwatch_metric_alarm" "tgw_bytes_out" {
-  alarm_name          = "${var.project_tag}-tgw-bytes-out"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 3
-  metric_name         = "BytesOut"
-  namespace           = "AWS/TransitGateway"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 500000000
-  alarm_description   = "Alert when TGW outbound bytes exceed 500MB avg over 15 min"
-  actions_enabled     = true
+output "managed_ad_dns_ips" {
+  description = "Managed AD DNS IPs"
+  value       = aws_directory_service_directory.managed_ad.dns_ip_addresses
+}
 
-  alarm_actions = [aws_sns_topic.alarm_notifications.arn]
-  # Intentionally NO insufficient_data_actions
+output "asg_name" {
+  description = "Windows ASG name"
+  value       = aws_autoscaling_group.windows.name
+}
 
-  tags = {
-    Name = "${var.project_tag}-tgw-bytes-out-alarm"
-  }
+output "patch_baseline_id" {
+  description = "SSM Patch Baseline ID"
+  value       = aws_ssm_patch_baseline.windows.id
+}
+
+output "maintenance_window_id" {
+  description = "SSM Maintenance Window ID"
+  value       = aws_ssm_maintenance_window.patch.id
 }
