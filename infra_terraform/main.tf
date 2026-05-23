@@ -284,6 +284,7 @@ resource "aws_security_group" "windows_asg" {
 # ============================================================
 
 data "aws_ami" "windows_2019" {
+  count       = var.custom_ami_id == "" ? 1 : 0
   most_recent = true
   owners      = ["amazon"]
 
@@ -521,4 +522,9 @@ output "patch_baseline_id" {
 output "maintenance_window_id" {
   description = "SSM Maintenance Window ID"
   value       = aws_ssm_maintenance_window.patch.id
+}
+
+output "ami_id" {
+  description = "AMI ID used by the launch template"
+  value       = local.ami_id
 }
