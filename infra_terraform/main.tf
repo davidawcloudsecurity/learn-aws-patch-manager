@@ -545,6 +545,105 @@ resource "aws_efs_mount_target" "controller" {
 }
 
 # ============================================================
+# EFS-SAMBA BRIDGE (Ubuntu EC2 — mounts EFS, shares via SMB)
+# ============================================================
+
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+resource "aws_security_group" "efs_samba" {
+  name        = "${local.name_prefix}-sg-efs-samba"
+  description = "EFS Samba bridge - SMB from VPC, NFS to EFS"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "SMB from VPC (Windows instances)"
+    from_port   = 445
+    to_port     = 445
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-sg-efs-samba" })
+}
+
+resource "aws_instance" "efs_samba" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.private_controller[0].id
+  iam_instance_profile   = local.controller_instance_profile
+  vpc_security_group_ids = [aws_security_group.efs_samba.id, aws_security_group.efs.id]
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  user_data = base64encode(<<-EOF
+#!/bin/bash
+set -e
+
+# Mount EFS
+apt-get update -y
+apt-get install -y nfs-common samba
+mkdir -p /mnt/efs
+mount -t nfs4 -o nfsvers=4.1 ${local.efs_id}.efs.${var.aws_region}.amazonaws.com:/ /mnt/efs
+
+# Persist mount
+echo "${local.efs_id}.efs.${var.aws_region}.amazonaws.com:/ /mnt/efs nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+
+# Create Jenkins home directory
+mkdir -p /mnt/efs/jenkins
+chmod 777 /mnt/efs/jenkins
+
+# Configure Samba
+cat >> /etc/samba/smb.conf << 'SAMBA'
+
+[efshare]
+   path = /mnt/efs
+   writable = yes
+   guest ok = yes
+   create mask = 0777
+   directory mask = 0777
+   force user = nobody
+SAMBA
+
+systemctl restart smbd
+systemctl enable smbd
+EOF
+  )
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-efs-samba"
+    Role = "EFS-Samba-Bridge"
+  })
+}
+
+output "efs_samba_private_ip" {
+  description = "Private IP of EFS Samba bridge (use for Windows: net use Z: \\\\<ip>\\efshare)"
+  value       = aws_instance.efs_samba.private_ip
+}
+
+# ============================================================
 # APPLICATION LOAD BALANCER
 # ============================================================
 
@@ -670,9 +769,8 @@ resource "aws_launch_template" "jenkins_controller" {
       $retries++
     }
 
-    # --- Mount EFS to drive Z: ---
-    $EfsDns = "${local.efs_id}.efs.${var.aws_region}.amazonaws.com"
-    C:\Windows\System32\mount.exe -o anon "\\$EfsDns\/" Z:
+    # --- Mount EFS via Samba bridge (SMB) ---
+    net use Z: "\\${aws_instance.efs_samba.private_ip}\efshare" /persistent:yes
 
     Write-Output "Controller bootstrap complete. Jenkins on port 8080."
     </powershell>
@@ -772,9 +870,8 @@ resource "aws_launch_template" "jenkins_agent" {
     $env:JAVA_HOME = $JavaPath
     $env:PATH = "$JavaPath\bin;$env:PATH"
 
-    # --- Mount EFS to drive Z: ---
-    $EfsDns = "${local.efs_id}.efs.${var.aws_region}.amazonaws.com"
-    C:\Windows\System32\mount.exe -o anon "\\$EfsDns\/" Z:
+    # --- Mount EFS via Samba bridge (SMB) ---
+    net use Z: "\\${aws_instance.efs_samba.private_ip}\efshare" /persistent:yes
 
     Write-Output "Agent bootstrap complete. Java 21 installed for JNLP connection."
     </powershell>
