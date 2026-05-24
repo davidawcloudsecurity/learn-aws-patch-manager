@@ -630,25 +630,50 @@ resource "aws_launch_template" "jenkins_controller" {
     # Install NFS client for EFS
     Install-WindowsFeature -Name NFS-Client
 
-    # Mount EFS
-    $EfsId = "${local.efs_id}"
-    $EfsDns = "$EfsId.efs.${var.aws_region}.amazonaws.com"
-    New-Item -ItemType Directory -Path "C:\efshare" -Force
-    cmd /c "mount -o nolock $EfsDns:/ C:\efshare"
-
     # Install Chocolatey
     Set-ExecutionPolicy Bypass -Scope Process -Force
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+    refreshenv
 
-    # Install Java 17 and Jenkins
+    # Install Java 17
     choco install corretto17jdk -y
+    refreshenv
+
+    # Set JAVA_HOME explicitly
+    $JavaPath = (Get-ChildItem "C:\Program Files\Amazon Corretto" -Directory | Select-Object -First 1).FullName
+    [System.Environment]::SetEnvironmentVariable("JAVA_HOME", $JavaPath, "Machine")
+    $env:JAVA_HOME = $JavaPath
+    $env:PATH = "$JavaPath\bin;$env:PATH"
+
+    # Install Jenkins
     choco install jenkins -y
 
-    # Jenkins runs on port 8080 by default
-    Start-Sleep -Seconds 30
+    # Wait and ensure Jenkins service is running
+    Start-Sleep -Seconds 60
     Set-Service Jenkins -StartupType Automatic
+    Restart-Service Jenkins -Force
+    Start-Sleep -Seconds 30
+
+    # Verify Jenkins is listening on 8080
+    $retries = 0
+    while ($retries -lt 10) {
+      try {
+        $response = Invoke-WebRequest -Uri "http://localhost:8080/login" -UseBasicParsing -TimeoutSec 5
+        if ($response.StatusCode -eq 200) { break }
+      } catch {}
+      Start-Sleep -Seconds 15
+      Restart-Service Jenkins -Force -ErrorAction SilentlyContinue
+      $retries++
+    }
+
     Write-Output "Controller bootstrap complete. Jenkins on port 8080."
+    # Mount EFS
+    $EfsId = "${local.efs_id}"
+    $EfsDns = "$EfsId.efs.${var.aws_region}.amazonaws.com"
+    New-Item -ItemType Directory -Path "C:\efshare" -Force
+    mount "\\$EfsDns\" "C:\efshare"
+        
     </powershell>
   EOF
   )
@@ -664,7 +689,7 @@ resource "aws_autoscaling_group" "jenkins_controllers" {
   max_size                  = 2
   vpc_zone_identifier       = aws_subnet.private_controller[*].id
   health_check_type         = "ELB"
-  health_check_grace_period = 600
+  health_check_grace_period = 900
   wait_for_capacity_timeout = "15m"
   target_group_arns         = [aws_lb_target_group.jenkins.arn]
 
@@ -737,7 +762,7 @@ resource "aws_launch_template" "jenkins_agent" {
     $EfsId = "${local.efs_id}"
     $EfsDns = "$EfsId.efs.${var.aws_region}.amazonaws.com"
     New-Item -ItemType Directory -Path "C:\efshare" -Force
-    cmd /c "mount -o nolock $EfsDns:/ C:\efshare"
+    mount "\\$EfsDns\" "C:\efshare"
 
     # Install Chocolatey
     Set-ExecutionPolicy Bypass -Scope Process -Force
