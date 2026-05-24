@@ -623,57 +623,58 @@ resource "aws_launch_template" "jenkins_controller" {
 
   user_data = base64encode(<<-EOF
     <powershell>
-    # SSM Agent
+    # --- SSM Agent ---
     Start-Service AmazonSSMAgent
     Set-Service AmazonSSMAgent -StartupType Automatic
 
-    # Install NFS client for EFS
+    # --- Install NFS client for EFS ---
     Install-WindowsFeature -Name NFS-Client
 
-    # Install Chocolatey
+    # --- Install Chocolatey ---
     Set-ExecutionPolicy Bypass -Scope Process -Force
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-    refreshenv
+    $env:PATH = "$env:PATH;C:\ProgramData\chocolatey\bin"
 
-    # Install Java 17
-    choco install corretto17jdk -y
-    refreshenv
-
-    # Set JAVA_HOME explicitly
-    $JavaPath = (Get-ChildItem "C:\Program Files\Amazon Corretto" -Directory | Select-Object -First 1).FullName
+    # --- Install Java 21 (Jenkins requires 21+) ---
+    choco install corretto21jdk -y
+    $JavaPath = (Get-ChildItem "C:\Program Files\Amazon Corretto" -Directory | Where-Object { $_.Name -like "jdk21*" } | Select-Object -First 1).FullName
     [System.Environment]::SetEnvironmentVariable("JAVA_HOME", $JavaPath, "Machine")
     $env:JAVA_HOME = $JavaPath
     $env:PATH = "$JavaPath\bin;$env:PATH"
 
-    # Install Jenkins
+    # --- Install Jenkins ---
     choco install jenkins -y
 
-    # Wait and ensure Jenkins service is running
-    Start-Sleep -Seconds 60
+    # --- Point Jenkins to Java 21 in jenkins.xml ---
+    Start-Sleep -Seconds 10
+    $jenkinsXml = "C:\Program Files\Jenkins\jenkins.xml"
+    if (Test-Path $jenkinsXml) {
+      $content = Get-Content $jenkinsXml -Raw
+      $content = $content -replace '(?i)<executable>[^<]+</executable>', "<executable>$JavaPath\bin\java.exe</executable>"
+      Set-Content $jenkinsXml -Value $content
+    }
+
+    # --- Start Jenkins ---
     Set-Service Jenkins -StartupType Automatic
     Restart-Service Jenkins -Force
     Start-Sleep -Seconds 30
 
-    # Verify Jenkins is listening on 8080
+    # --- Verify Jenkins on port 8080 ---
     $retries = 0
     while ($retries -lt 10) {
-      try {
-        $response = Invoke-WebRequest -Uri "http://localhost:8080/login" -UseBasicParsing -TimeoutSec 5
-        if ($response.StatusCode -eq 200) { break }
-      } catch {}
+      $listening = netstat -an | Select-String ":8080.*LISTENING"
+      if ($listening) { break }
       Start-Sleep -Seconds 15
       Restart-Service Jenkins -Force -ErrorAction SilentlyContinue
       $retries++
     }
 
+    # --- Mount EFS to drive Z: ---
+    $EfsDns = "${local.efs_id}.efs.${var.aws_region}.amazonaws.com"
+    C:\Windows\System32\mount.exe -o anon "\\$EfsDns\/" Z:
+
     Write-Output "Controller bootstrap complete. Jenkins on port 8080."
-    # Mount EFS
-    $EfsId = "${local.efs_id}"
-    $EfsDns = "$EfsId.efs.${var.aws_region}.amazonaws.com"
-    New-Item -ItemType Directory -Path "C:\efshare" -Force
-    mount "\\$EfsDns\" "C:\efshare"
-        
     </powershell>
   EOF
   )
@@ -751,28 +752,31 @@ resource "aws_launch_template" "jenkins_agent" {
 
   user_data = base64encode(<<-EOF
     <powershell>
-    # SSM Agent
+    # --- SSM Agent ---
     Start-Service AmazonSSMAgent
     Set-Service AmazonSSMAgent -StartupType Automatic
 
-    # Install NFS client for EFS
+    # --- Install NFS client for EFS ---
     Install-WindowsFeature -Name NFS-Client
 
-    # Mount EFS
-    $EfsId = "${local.efs_id}"
-    $EfsDns = "$EfsId.efs.${var.aws_region}.amazonaws.com"
-    New-Item -ItemType Directory -Path "C:\efshare" -Force
-    mount "\\$EfsDns\" "C:\efshare"
-
-    # Install Chocolatey
+    # --- Install Chocolatey ---
     Set-ExecutionPolicy Bypass -Scope Process -Force
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+    $env:PATH = "$env:PATH;C:\ProgramData\chocolatey\bin"
 
-    # Install Java 17 (required for Jenkins JNLP agent)
-    choco install corretto17jdk -y
+    # --- Install Java 21 (required for Jenkins JNLP agent) ---
+    choco install corretto21jdk -y
+    $JavaPath = (Get-ChildItem "C:\Program Files\Amazon Corretto" -Directory | Where-Object { $_.Name -like "jdk21*" } | Select-Object -First 1).FullName
+    [System.Environment]::SetEnvironmentVariable("JAVA_HOME", $JavaPath, "Machine")
+    $env:JAVA_HOME = $JavaPath
+    $env:PATH = "$JavaPath\bin;$env:PATH"
 
-    Write-Output "Agent bootstrap complete. Java installed for JNLP connection."
+    # --- Mount EFS to drive Z: ---
+    $EfsDns = "${local.efs_id}.efs.${var.aws_region}.amazonaws.com"
+    C:\Windows\System32\mount.exe -o anon "\\$EfsDns\/" Z:
+
+    Write-Output "Agent bootstrap complete. Java 21 installed for JNLP connection."
     </powershell>
   EOF
   )
