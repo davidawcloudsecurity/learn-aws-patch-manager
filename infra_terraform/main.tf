@@ -590,16 +590,15 @@ resource "aws_lb_listener" "http" {
 }
 
 # ============================================================
-# LAUNCH TEMPLATE — Jenkins Controller (Windows Server 2019)
+# JENKINS CONTROLLER EC2 INSTANCES (2, one per AZ)
 # ============================================================
 
-resource "aws_launch_template" "jenkins_controller" {
-  name_prefix   = "${local.name_prefix}-controller-"
-  image_id      = var.windows_ami_id
-  instance_type = var.controller_instance_type
-
-  iam_instance_profile { name = local.controller_instance_profile }
-
+resource "aws_instance" "jenkins_controller" {
+  count                  = 2
+  ami                    = var.windows_ami_id
+  instance_type          = var.controller_instance_type
+  subnet_id              = aws_subnet.private_controller[count.index].id
+  iam_instance_profile   = local.controller_instance_profile
   vpc_security_group_ids = [aws_security_group.jenkins_controller.id]
 
   metadata_options {
@@ -608,36 +607,50 @@ resource "aws_launch_template" "jenkins_controller" {
     http_put_response_hop_limit = 2
   }
 
-  tag_specifications {
-    resource_type = "instance"
-    tags = merge(local.tags, {
-      Name = "${local.name_prefix}-controller"
-      Role = "JenkinsController"
-    })
-  }
-
-  tag_specifications {
-    resource_type = "volume"
-    tags          = merge(local.tags, { Name = "${local.name_prefix}-controller-vol" })
-  }
-
   user_data = base64encode(<<-EOF
     <powershell>
-    # Mount EFS as network drive
-    $EfsId = "${local.efs_id}"
-    $MountPoint = "Z:"
-    New-PSDrive -Name Z -PSProvider FileSystem -Root "\\$EfsId.efs.${var.aws_region}.amazonaws.com\\" -Persist
-
-    # Install Jenkins (Windows Service)
+    # SSM Agent
     Start-Service AmazonSSMAgent
     Set-Service AmazonSSMAgent -StartupType Automatic
-    Write-Output "Controller bootstrap complete."
+
+    # Install NFS client for EFS
+    Install-WindowsFeature -Name NFS-Client
+
+    # Mount EFS
+    $EfsId = "${local.efs_id}"
+    $EfsDns = "$EfsId.efs.${var.aws_region}.amazonaws.com"
+    New-Item -ItemType Directory -Path "C:\efshare" -Force
+    cmd /c "mount -o nolock $EfsDns:/ C:\efshare"
+
+    # Install Chocolatey
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+    # Install Java 17 and Jenkins
+    choco install corretto17jdk -y
+    choco install jenkins -y
+
+    # Configure Jenkins to use shared EFS home
+    Start-Sleep -Seconds 30
+    Set-Service Jenkins -StartupType Automatic
+    Write-Output "Controller bootstrap complete. Jenkins on port 8080."
     </powershell>
   EOF
   )
 
-  lifecycle { create_before_destroy = true }
-  tags = merge(local.tags, { Name = "${local.name_prefix}-controller-lt" })
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-controller-${count.index + 1}"
+    Role = "JenkinsController"
+  })
+}
+
+# Register controllers to ALB target group
+resource "aws_lb_target_group_attachment" "jenkins_controller" {
+  count            = 2
+  target_group_arn = aws_lb_target_group.jenkins.arn
+  target_id        = aws_instance.jenkins_controller[count.index].id
+  port             = 8080
 }
 
 # ============================================================
@@ -674,14 +687,28 @@ resource "aws_launch_template" "jenkins_agent" {
 
   user_data = base64encode(<<-EOF
     <powershell>
-    # Mount EFS as network drive
-    $EfsId = "${local.efs_id}"
-    New-PSDrive -Name Z -PSProvider FileSystem -Root "\\$EfsId.efs.${var.aws_region}.amazonaws.com\\" -Persist
-
-    # Start SSM Agent
+    # SSM Agent
     Start-Service AmazonSSMAgent
     Set-Service AmazonSSMAgent -StartupType Automatic
-    Write-Output "Agent bootstrap complete. Connects to Jenkins Controller via JNLP."
+
+    # Install NFS client for EFS
+    Install-WindowsFeature -Name NFS-Client
+
+    # Mount EFS
+    $EfsId = "${local.efs_id}"
+    $EfsDns = "$EfsId.efs.${var.aws_region}.amazonaws.com"
+    New-Item -ItemType Directory -Path "C:\efshare" -Force
+    cmd /c "mount -o nolock $EfsDns:/ C:\efshare"
+
+    # Install Chocolatey
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+    # Install Java 17 (required for Jenkins JNLP agent)
+    choco install corretto17jdk -y
+
+    Write-Output "Agent bootstrap complete. Java installed for JNLP connection."
     </powershell>
   EOF
   )
@@ -691,7 +718,7 @@ resource "aws_launch_template" "jenkins_agent" {
 }
 
 # ============================================================
-# AUTO SCALING GROUP — Jenkins Agents (Windows Server 2019)
+# AUTO SCALING GROUP — Jenkins Agents (no ALB attachment)
 # ============================================================
 
 resource "aws_autoscaling_group" "jenkins_agents" {
@@ -703,7 +730,6 @@ resource "aws_autoscaling_group" "jenkins_agents" {
   health_check_type         = "EC2"
   health_check_grace_period = 300
   wait_for_capacity_timeout = "15m"
-  target_group_arns         = [aws_lb_target_group.jenkins.arn]
 
   launch_template {
     id      = aws_launch_template.jenkins_agent.id
