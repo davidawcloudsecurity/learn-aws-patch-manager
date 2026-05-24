@@ -1,275 +1,202 @@
+# ============================================================
+# main.tf — Jenkins on Windows Server 2019
+# Architecture: Route53 → CloudFront → ALB → Jenkins Controllers
+#               Jenkins Agents in ASG (Windows Server 2019)
+#               EFS shared storage, S3 artifacts
+# ============================================================
+
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 provider "aws" {
-  region = var.region
+  region = var.aws_region
 }
 
 # ============================================================
-# VPC + Networking (2 AZs required for Managed AD)
+# LOCALS
+# ============================================================
+
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+
+  azs = ["${var.aws_region}a", "${var.aws_region}b"]
+
+  public_subnet_cidrs      = ["172.168.1.0/24", "172.168.2.0/24"]
+  private_controller_cidrs = ["172.168.11.0/24", "172.168.12.0/24"]
+  private_agent_cidrs      = ["172.168.21.0/24", "172.168.22.0/24"]
+
+  tags = {
+    Project       = var.project_name
+    Environment   = var.environment
+    ManagedBy     = "Terraform"
+    "auto-delete" = "no"
+  }
+}
+
+# ============================================================
+# VPC & NETWORKING
 # ============================================================
 
 resource "aws_vpc" "main" {
-  count                = var.create_vpc ? 1 : 0
-  cidr_block           = var.main_cidr_block
+  cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = { Name = var.project_tag }
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-vpc" })
 }
 
-locals {
-  vpc_id = var.create_vpc ? aws_vpc.main[0].id : data.aws_vpc.existing[0].id
-  ami_id = var.custom_ami_id != "" ? var.custom_ami_id : data.aws_ami.windows_2019[0].id
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags   = merge(local.tags, { Name = "${local.name_prefix}-igw" })
 }
 
-data "aws_vpc" "existing" {
-  count = var.create_vpc ? 0 : 1
-  filter {
-    name   = "tag:Name"
-    values = [var.project_tag]
-  }
-}
-
-resource "aws_internet_gateway" "igw" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = local.vpc_id
-  tags   = { Name = "${var.project_tag}-igw" }
-}
-
+# Public Subnets (ALB)
 resource "aws_subnet" "public" {
-  count                   = var.create_vpc ? length(var.public_subnet_cidrs) : 0
-  vpc_id                  = local.vpc_id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = var.azs[count.index]
-  map_public_ip_on_launch = true
-  tags = { Name = "${var.project_tag}-public-${var.azs[count.index]}" }
+  count                   = 2
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = local.public_subnet_cidrs[count.index]
+  availability_zone       = local.azs[count.index]
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-public-${count.index + 1}"
+    Tier = "Public"
+  })
 }
 
-resource "aws_subnet" "private" {
-  count             = var.create_vpc ? length(var.private_subnet_cidrs) : 0
-  vpc_id            = local.vpc_id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = var.azs[count.index]
-  tags = { Name = "${var.project_tag}-private-${var.azs[count.index]}" }
+# Private Subnets (Jenkins Controllers)
+resource "aws_subnet" "private_controller" {
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = local.private_controller_cidrs[count.index]
+  availability_zone = local.azs[count.index]
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-private-controller-${count.index + 1}"
+    Tier = "Private-Controller"
+  })
 }
 
-# NAT Gateway — ASG instances in private subnets need outbound for patching
+# Private Subnets (Jenkins Agents - ASG)
+resource "aws_subnet" "private_agent" {
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = local.private_agent_cidrs[count.index]
+  availability_zone = local.azs[count.index]
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-private-agent-${count.index + 1}"
+    Tier = "Private-Agent"
+  })
+}
+
+# Elastic IPs for NAT Gateways
 resource "aws_eip" "nat" {
-  count  = var.create_vpc ? 1 : 0
+  count  = 2
   domain = "vpc"
-  tags   = { Name = "${var.project_tag}-nat-eip" }
+
+  tags       = merge(local.tags, { Name = "${local.name_prefix}-nat-eip-${count.index + 1}" })
+  depends_on = [aws_internet_gateway.main]
 }
 
-resource "aws_nat_gateway" "nat" {
-  count         = var.create_vpc ? 1 : 0
-  allocation_id = aws_eip.nat[0].id
-  subnet_id     = aws_subnet.public[0].id
-  tags          = { Name = "${var.project_tag}-nat-gw", "auto-delete" = "no" }
-  depends_on    = [aws_internet_gateway.igw]
+# NAT Gateways (one per AZ for HA)
+resource "aws_nat_gateway" "main" {
+  count         = 2
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
+
+  tags       = merge(local.tags, { Name = "${local.name_prefix}-nat-${count.index + 1}" })
+  depends_on = [aws_internet_gateway.main]
 }
 
+# Route Tables
 resource "aws_route_table" "public" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = local.vpc_id
+  vpc_id = aws_vpc.main.id
+
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw[0].id
+    gateway_id = aws_internet_gateway.main.id
   }
-  tags = { Name = "${var.project_tag}-public-rt" }
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-rt-public" })
 }
 
-resource "aws_route_table_association" "public" {
-  count          = var.create_vpc ? length(aws_subnet.public) : 0
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public[0].id
-}
+resource "aws_route_table" "private_controller" {
+  count  = 2
+  vpc_id = aws_vpc.main.id
 
-resource "aws_route_table" "private" {
-  count  = var.create_vpc ? 1 : 0
-  vpc_id = local.vpc_id
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat[0].id
-  }
-  tags = { Name = "${var.project_tag}-private-rt" }
-}
-
-resource "aws_route_table_association" "private" {
-  count          = var.create_vpc ? length(aws_subnet.private) : 0
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[0].id
-}
-
-# ============================================================
-# AWS Managed Microsoft AD
-# ============================================================
-
-resource "aws_directory_service_directory" "managed_ad" {
-  name     = var.ad_domain_name
-  password = var.ad_admin_password
-  edition  = var.ad_edition
-  type     = "MicrosoftAD"
-
-  vpc_settings {
-    vpc_id     = local.vpc_id
-    subnet_ids = aws_subnet.private[*].id
+    nat_gateway_id = aws_nat_gateway.main[count.index].id
   }
 
-  tags = { Name = "${var.project_tag}-managed-ad", "auto-delete" = "no" }
+  tags = merge(local.tags, { Name = "${local.name_prefix}-rt-controller-${count.index + 1}" })
 }
 
-# Point VPC DNS to Managed AD domain controllers
-resource "aws_vpc_dhcp_options" "ad_dns" {
-  domain_name         = var.ad_domain_name
-  domain_name_servers = aws_directory_service_directory.managed_ad.dns_ip_addresses
-  tags                = { Name = "${var.project_tag}-ad-dhcp" }
-}
+resource "aws_route_table" "private_agent" {
+  count  = 2
+  vpc_id = aws_vpc.main.id
 
-resource "aws_vpc_dhcp_options_association" "ad_dns" {
-  vpc_id          = local.vpc_id
-  dhcp_options_id = aws_vpc_dhcp_options.ad_dns.id
-}
-
-# ============================================================
-# IAM Role — EC2 instances need SSM + Directory Service access
-# ============================================================
-
-resource "aws_iam_role" "ec2_ssm_ad" {
-  name = "${var.project_tag}-ec2-ssm-ad-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-    }]
-  })
-
-  tags = { Name = "${var.project_tag}-ec2-ssm-ad-role" }
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_core" {
-  role       = aws_iam_role.ec2_ssm_ad.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_directory" {
-  role       = aws_iam_role.ec2_ssm_ad.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMDirectoryServiceAccess"
-}
-
-resource "aws_iam_instance_profile" "ec2_ssm_ad" {
-  name = "${var.project_tag}-ec2-ssm-ad-profile"
-  role = aws_iam_role.ec2_ssm_ad.name
-}
-
-# ============================================================
-# SSM Document + Association — Auto AD Domain Join
-# ============================================================
-
-resource "aws_ssm_document" "ad_join" {
-  name          = "${var.project_tag}-ad-domain-join"
-  document_type = "Command"
-
-  content = jsonencode({
-    schemaVersion = "2.2"
-    description   = "Join Windows instance to AWS Managed AD"
-    mainSteps = [{
-      action = "aws:domainJoin"
-      name   = "domainJoin"
-      inputs = {
-        directoryId    = aws_directory_service_directory.managed_ad.id
-        directoryName  = var.ad_domain_name
-        dnsIpAddresses = aws_directory_service_directory.managed_ad.dns_ip_addresses
-      }
-    }]
-  })
-
-  tags = { Name = "${var.project_tag}-ad-join-doc" }
-}
-
-# Any instance tagged ADJoin=true will auto-join the domain
-resource "aws_ssm_association" "ad_join" {
-  name = aws_ssm_document.ad_join.name
-
-  targets {
-    key    = "tag:ADJoin"
-    values = ["true"]
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main[count.index].id
   }
 
-  depends_on = [aws_directory_service_directory.managed_ad]
+  tags = merge(local.tags, { Name = "${local.name_prefix}-rt-agent-${count.index + 1}" })
+}
+
+# Route Table Associations
+resource "aws_route_table_association" "public" {
+  count          = 2
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "private_controller" {
+  count          = 2
+  subnet_id      = aws_subnet.private_controller[count.index].id
+  route_table_id = aws_route_table.private_controller[count.index].id
+}
+
+resource "aws_route_table_association" "private_agent" {
+  count          = 2
+  subnet_id      = aws_subnet.private_agent[count.index].id
+  route_table_id = aws_route_table.private_agent[count.index].id
 }
 
 # ============================================================
-# Security Group — Windows ASG (AD + SSM + Patching)
+# SECURITY GROUPS
 # ============================================================
 
-resource "aws_security_group" "windows_asg" {
-  name        = "${var.project_tag}-windows-asg-sg"
-  description = "Windows ASG instances: AD-joined, SSM patching"
-  vpc_id      = local.vpc_id
+# ALB Security Group
+resource "aws_security_group" "alb" {
+  name        = "${local.name_prefix}-sg-alb"
+  description = "ALB - HTTPS from CloudFront"
+  vpc_id      = aws_vpc.main.id
 
-  # RDP from within VPC only
   ingress {
-    from_port   = 3389
-    to_port     = 3389
+    description = "HTTPS from internet (CloudFront)"
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "RDP from VPC"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # WinRM for SSM
   ingress {
-    from_port   = 5985
-    to_port     = 5986
+    description = "HTTP redirect"
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "WinRM"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # AD protocols (DNS, Kerberos, LDAP, SMB, LDAPS)
-  ingress {
-    from_port   = 53
-    to_port     = 53
-    protocol    = "tcp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "DNS TCP"
-  }
-  ingress {
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "DNS UDP"
-  }
-  ingress {
-    from_port   = 88
-    to_port     = 88
-    protocol    = "tcp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "Kerberos"
-  }
-  ingress {
-    from_port   = 389
-    to_port     = 389
-    protocol    = "tcp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "LDAP"
-  }
-  ingress {
-    from_port   = 445
-    to_port     = 445
-    protocol    = "tcp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "SMB"
-  }
-  ingress {
-    from_port   = 636
-    to_port     = 636
-    protocol    = "tcp"
-    cidr_blocks = [var.main_cidr_block]
-    description = "LDAPS"
-  }
-
-  # All outbound (patching + SSM endpoints)
   egress {
     from_port   = 0
     to_port     = 0
@@ -277,58 +204,403 @@ resource "aws_security_group" "windows_asg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_tag}-windows-asg-sg" }
+  tags = merge(local.tags, { Name = "${local.name_prefix}-sg-alb" })
+}
+
+# Jenkins Controller Security Group
+resource "aws_security_group" "jenkins_controller" {
+  name        = "${local.name_prefix}-sg-controller"
+  description = "Jenkins Controllers - traffic from ALB and agents"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "Jenkins UI from ALB"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
+    description     = "Jenkins JNLP from Agents"
+    from_port       = 50000
+    to_port         = 50000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.jenkins_agent.id]
+  }
+
+  ingress {
+    description = "WinRM from within VPC"
+    from_port   = 5985
+    to_port     = 5986
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  ingress {
+    description = "EFS NFS"
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-sg-controller" })
+}
+
+# Jenkins Agent Security Group
+resource "aws_security_group" "jenkins_agent" {
+  name        = "${local.name_prefix}-sg-agent"
+  description = "Jenkins Agents (ASG) - WinRM access"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "WinRM from within VPC"
+    from_port   = 5985
+    to_port     = 5986
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-sg-agent" })
+}
+
+# EFS Security Group
+resource "aws_security_group" "efs" {
+  name        = "${local.name_prefix}-sg-efs"
+  description = "EFS - NFS from controllers and agents"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "NFS from Controllers"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [aws_security_group.jenkins_controller.id]
+  }
+
+  ingress {
+    description     = "NFS from Agents"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [aws_security_group.jenkins_agent.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-sg-efs" })
 }
 
 # ============================================================
-# Windows Server 2019 AMI (latest)
+# IAM ROLES
 # ============================================================
 
-data "aws_ami" "windows_2019" {
-  count       = var.custom_ami_id == "" ? 1 : 0
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["Windows_Server-2019-English-Full-Base-*"]
-  }
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
-# ============================================================
-# Launch Template
-# ============================================================
-
-resource "aws_launch_template" "windows" {
-  name_prefix   = "${var.project_tag}-win-"
-  image_id      = local.ami_id
-  instance_type = var.windows_instance_type
-
-  iam_instance_profile {
-    name = aws_iam_instance_profile.ec2_ssm_ad.name
-  }
-
-  vpc_security_group_ids = [aws_security_group.windows_asg.id]
-
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name          = "${var.project_tag}-win-asg"
-      ADJoin        = "true"
-      PatchGroup    = "Windows-Production"
-      OS            = "Windows Server 2019"
-      "auto-delete" = "no"
+data "aws_iam_policy_document" "ec2_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
     }
   }
+}
 
-  tag_specifications {
-    resource_type = "volume"
-    tags = { Name = "${var.project_tag}-win-vol" }
+# --- Controller Role ---
+resource "aws_iam_role" "jenkins_controller" {
+  count              = var.create_iam ? 1 : 0
+  name               = "${local.name_prefix}-role-controller"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
+  tags               = local.tags
+}
+
+data "aws_iam_role" "jenkins_controller" {
+  count = var.create_iam ? 0 : 1
+  name  = "${local.name_prefix}-role-controller"
+}
+
+locals {
+  controller_role_name = var.create_iam ? aws_iam_role.jenkins_controller[0].name : data.aws_iam_role.jenkins_controller[0].name
+  agent_role_name      = var.create_iam ? aws_iam_role.jenkins_agent[0].name : data.aws_iam_role.jenkins_agent[0].name
+}
+
+resource "aws_iam_role_policy_attachment" "controller_ssm" {
+  count      = var.create_iam ? 1 : 0
+  role       = local.controller_role_name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy_attachment" "controller_cloudwatch" {
+  count      = var.create_iam ? 1 : 0
+  role       = local.controller_role_name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_policy" "jenkins_controller_policy" {
+  count       = var.create_iam ? 1 : 0
+  name        = "${local.name_prefix}-policy-controller"
+  description = "Jenkins Controller custom permissions"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = [
+          local.s3_bucket_arn,
+          "${local.s3_bucket_arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup",
+          "ec2:DescribeInstances"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "controller_custom" {
+  count      = var.create_iam ? 1 : 0
+  role       = local.controller_role_name
+  policy_arn = aws_iam_policy.jenkins_controller_policy[0].arn
+}
+
+resource "aws_iam_instance_profile" "jenkins_controller" {
+  count = var.create_iam ? 1 : 0
+  name  = "${local.name_prefix}-profile-controller"
+  role  = local.controller_role_name
+}
+
+data "aws_iam_instance_profile" "jenkins_controller" {
+  count = var.create_iam ? 0 : 1
+  name  = "${local.name_prefix}-profile-controller"
+}
+
+# --- Agent Role ---
+resource "aws_iam_role" "jenkins_agent" {
+  count              = var.create_iam ? 1 : 0
+  name               = "${local.name_prefix}-role-agent"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
+  tags               = local.tags
+}
+
+data "aws_iam_role" "jenkins_agent" {
+  count = var.create_iam ? 0 : 1
+  name  = "${local.name_prefix}-role-agent"
+}
+
+resource "aws_iam_role_policy_attachment" "agent_ssm" {
+  count      = var.create_iam ? 1 : 0
+  role       = local.agent_role_name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy_attachment" "agent_cloudwatch" {
+  count      = var.create_iam ? 1 : 0
+  role       = local.agent_role_name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_policy" "jenkins_agent_policy" {
+  count       = var.create_iam ? 1 : 0
+  name        = "${local.name_prefix}-policy-agent"
+  description = "Jenkins Agent custom permissions"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+        Resource = [
+          local.s3_bucket_arn,
+          "${local.s3_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "agent_custom" {
+  count      = var.create_iam ? 1 : 0
+  role       = local.agent_role_name
+  policy_arn = aws_iam_policy.jenkins_agent_policy[0].arn
+}
+
+resource "aws_iam_instance_profile" "jenkins_agent" {
+  count = var.create_iam ? 1 : 0
+  name  = "${local.name_prefix}-profile-agent"
+  role  = local.agent_role_name
+}
+
+data "aws_iam_instance_profile" "jenkins_agent" {
+  count = var.create_iam ? 0 : 1
+  name  = "${local.name_prefix}-profile-agent"
+}
+
+locals {
+  controller_instance_profile = var.create_iam ? aws_iam_instance_profile.jenkins_controller[0].name : data.aws_iam_instance_profile.jenkins_controller[0].name
+  agent_instance_profile      = var.create_iam ? aws_iam_instance_profile.jenkins_agent[0].name : data.aws_iam_instance_profile.jenkins_agent[0].name
+}
+
+# ============================================================
+# S3 BUCKET — Artifacts, backups, logs
+# ============================================================
+
+resource "aws_s3_bucket" "jenkins_artifacts" {
+  count  = var.create_s3 ? 1 : 0
+  bucket = "${local.name_prefix}-artifacts-${data.aws_caller_identity.current.account_id}"
+  tags   = merge(local.tags, { Name = "${local.name_prefix}-artifacts" })
+}
+
+data "aws_s3_bucket" "jenkins_artifacts" {
+  count  = var.create_s3 ? 0 : 1
+  bucket = "${local.name_prefix}-artifacts-${data.aws_caller_identity.current.account_id}"
+}
+
+locals {
+  s3_bucket_arn = var.create_s3 ? aws_s3_bucket.jenkins_artifacts[0].arn : data.aws_s3_bucket.jenkins_artifacts[0].arn
+  s3_bucket_id  = var.create_s3 ? aws_s3_bucket.jenkins_artifacts[0].id : data.aws_s3_bucket.jenkins_artifacts[0].id
+}
+
+resource "aws_s3_bucket_versioning" "jenkins_artifacts" {
+  count  = var.create_s3 ? 1 : 0
+  bucket = local.s3_bucket_id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "jenkins_artifacts" {
+  count  = var.create_s3 ? 1 : 0
+  bucket = local.s3_bucket_id
+  rule {
+    apply_server_side_encryption_by_default { sse_algorithm = "AES256" }
   }
+}
+
+resource "aws_s3_bucket_public_access_block" "jenkins_artifacts" {
+  count                   = var.create_s3 ? 1 : 0
+  bucket                  = local.s3_bucket_id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+data "aws_caller_identity" "current" {}
+
+# ============================================================
+# EFS — Shared Jenkins Home
+# ============================================================
+
+resource "aws_efs_file_system" "jenkins" {
+  count          = var.create_efs ? 1 : 0
+  creation_token = "${local.name_prefix}-efs"
+  encrypted      = true
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-efs" })
+}
+
+data "aws_efs_file_system" "jenkins" {
+  count          = var.create_efs ? 0 : 1
+  creation_token = "${local.name_prefix}-efs"
+}
+
+locals {
+  efs_id = var.create_efs ? aws_efs_file_system.jenkins[0].id : data.aws_efs_file_system.jenkins[0].file_system_id
+}
+
+# EFS mount targets in controller subnets — agents in same AZs can access them
+resource "aws_efs_mount_target" "controller" {
+  count           = var.create_efs ? 2 : 0
+  file_system_id  = local.efs_id
+  subnet_id       = aws_subnet.private_controller[count.index].id
+  security_groups = [aws_security_group.efs.id]
+}
+
+# ============================================================
+# APPLICATION LOAD BALANCER
+# ============================================================
+
+resource "aws_lb" "jenkins" {
+  name               = "${local.name_prefix}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = aws_subnet.public[*].id
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-alb" })
+}
+
+resource "aws_lb_target_group" "jenkins" {
+  name     = "${local.name_prefix}-tg"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+
+  health_check {
+    path                = "/login"
+    port                = "8080"
+    protocol            = "HTTP"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 10
+    interval            = 30
+    matcher             = "200,302"
+  }
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-tg" })
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.jenkins.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.jenkins.arn
+  }
+}
+
+# ============================================================
+# LAUNCH TEMPLATE — Jenkins Controller (Windows Server 2019)
+# ============================================================
+
+resource "aws_launch_template" "jenkins_controller" {
+  name_prefix   = "${local.name_prefix}-controller-"
+  image_id      = var.windows_ami_id
+  instance_type = var.controller_instance_type
+
+  iam_instance_profile { name = local.controller_instance_profile }
+
+  vpc_security_group_ids = [aws_security_group.jenkins_controller.id]
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -336,58 +608,121 @@ resource "aws_launch_template" "windows" {
     http_put_response_hop_limit = 2
   }
 
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(local.tags, {
+      Name = "${local.name_prefix}-controller"
+      Role = "JenkinsController"
+    })
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags          = merge(local.tags, { Name = "${local.name_prefix}-controller-vol" })
+  }
+
   user_data = base64encode(<<-EOF
     <powershell>
+    # Mount EFS as network drive
+    $EfsId = "${local.efs_id}"
+    $MountPoint = "Z:"
+    New-PSDrive -Name Z -PSProvider FileSystem -Root "\\$EfsId.efs.${var.aws_region}.amazonaws.com\\" -Persist
+
+    # Install Jenkins (Windows Service)
     Start-Service AmazonSSMAgent
     Set-Service AmazonSSMAgent -StartupType Automatic
-    Write-Output "Bootstrap complete. AD join handled by SSM Association."
+    Write-Output "Controller bootstrap complete."
     </powershell>
   EOF
   )
 
   lifecycle { create_before_destroy = true }
-
-  tags = { Name = "${var.project_tag}-win-launch-template" }
+  tags = merge(local.tags, { Name = "${local.name_prefix}-controller-lt" })
 }
 
 # ============================================================
-# Auto Scaling Group
+# LAUNCH TEMPLATE — Jenkins Agent (Windows Server 2019 ASG)
 # ============================================================
 
-resource "aws_autoscaling_group" "windows" {
-  name                      = "${var.project_tag}-windows-asg"
-  desired_capacity          = var.asg_desired_capacity
-  min_size                  = var.asg_min_size
-  max_size                  = var.asg_max_size
-  vpc_zone_identifier       = aws_subnet.private[*].id
+resource "aws_launch_template" "jenkins_agent" {
+  name_prefix   = "${local.name_prefix}-agent-"
+  image_id      = var.windows_ami_id
+  instance_type = var.agent_instance_type
+
+  iam_instance_profile { name = local.agent_instance_profile }
+
+  vpc_security_group_ids = [aws_security_group.jenkins_agent.id]
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(local.tags, {
+      Name = "${local.name_prefix}-agent"
+      Role = "JenkinsAgent"
+    })
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags          = merge(local.tags, { Name = "${local.name_prefix}-agent-vol" })
+  }
+
+  user_data = base64encode(<<-EOF
+    <powershell>
+    # Mount EFS as network drive
+    $EfsId = "${local.efs_id}"
+    New-PSDrive -Name Z -PSProvider FileSystem -Root "\\$EfsId.efs.${var.aws_region}.amazonaws.com\\" -Persist
+
+    # Start SSM Agent
+    Start-Service AmazonSSMAgent
+    Set-Service AmazonSSMAgent -StartupType Automatic
+    Write-Output "Agent bootstrap complete. Connects to Jenkins Controller via JNLP."
+    </powershell>
+  EOF
+  )
+
+  lifecycle { create_before_destroy = true }
+  tags = merge(local.tags, { Name = "${local.name_prefix}-agent-lt" })
+}
+
+# ============================================================
+# AUTO SCALING GROUP — Jenkins Agents (Windows Server 2019)
+# ============================================================
+
+resource "aws_autoscaling_group" "jenkins_agents" {
+  name                      = "${local.name_prefix}-agents-asg"
+  desired_capacity          = var.agent_desired_capacity
+  min_size                  = var.agent_min_size
+  max_size                  = var.agent_max_size
+  vpc_zone_identifier       = aws_subnet.private_agent[*].id
   health_check_type         = "EC2"
+  health_check_grace_period = 300
   wait_for_capacity_timeout = "15m"
+  target_group_arns         = [aws_lb_target_group.jenkins.arn]
 
   launch_template {
-    id      = aws_launch_template.windows.id
+    id      = aws_launch_template.jenkins_agent.id
     version = "$Latest"
   }
 
   instance_refresh {
     strategy = "Rolling"
-    preferences {
-      min_healthy_percentage = 50
-    }
+    preferences { min_healthy_percentage = 50 }
   }
 
   tag {
     key                 = "Name"
-    value               = "${var.project_tag}-win-asg"
+    value               = "${local.name_prefix}-agent"
     propagate_at_launch = true
   }
   tag {
-    key                 = "PatchGroup"
-    value               = "Windows-Production"
-    propagate_at_launch = true
-  }
-  tag {
-    key                 = "ADJoin"
-    value               = "true"
+    key                 = "Role"
+    value               = "JenkinsAgent"
     propagate_at_launch = true
   }
   tag {
@@ -396,142 +731,94 @@ resource "aws_autoscaling_group" "windows" {
     propagate_at_launch = true
   }
 
-  depends_on = [
-    aws_directory_service_directory.managed_ad,
-    aws_ssm_association.ad_join,
-    aws_nat_gateway.nat
-  ]
+  depends_on = [aws_nat_gateway.main]
 }
 
 # ============================================================
-# SSM Patch Baseline (Windows)
+# CLOUDFRONT DISTRIBUTION
 # ============================================================
 
-resource "aws_ssm_patch_baseline" "windows" {
-  name             = "${var.project_tag}-windows-baseline"
-  operating_system = "WINDOWS"
+resource "aws_cloudfront_distribution" "jenkins" {
+  enabled             = true
+  default_root_object = ""
+  price_class         = "PriceClass_200"
+  comment             = "Jenkins UI - ${local.name_prefix}"
 
-  approval_rule {
-    approve_after_days = 7
-    compliance_level   = "CRITICAL"
+  tags = merge(local.tags, { Name = "${local.name_prefix}-cloudfront" })
 
-    patch_filter {
-      key    = "CLASSIFICATION"
-      values = ["CriticalUpdates", "SecurityUpdates"]
-    }
-    patch_filter {
-      key    = "MSRC_SEVERITY"
-      values = ["Critical", "Important"]
+  origin {
+    domain_name = aws_lb.jenkins.dns_name
+    origin_id   = "alb-origin"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
 
-  approval_rule {
-    approve_after_days = 14
-    compliance_level   = "HIGH"
+  default_cache_behavior {
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "alb-origin"
+    viewer_protocol_policy = "redirect-to-https"
 
-    patch_filter {
-      key    = "CLASSIFICATION"
-      values = ["UpdateRollups", "Updates"]
+    forwarded_values {
+      query_string = true
+      headers      = ["Host", "Origin", "Authorization"]
+      cookies { forward = "all" }
     }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
   }
 
-  tags = { Name = "${var.project_tag}-windows-patch-baseline" }
-}
-
-resource "aws_ssm_patch_group" "windows" {
-  baseline_id = aws_ssm_patch_baseline.windows.id
-  patch_group = "Windows-Production"
-}
-
-# ============================================================
-# SSM Maintenance Window + Task
-# ============================================================
-
-resource "aws_ssm_maintenance_window" "patch" {
-  name                       = "${var.project_tag}-patch-window"
-  schedule                   = var.patch_schedule
-  duration                   = var.patch_window_duration
-  cutoff                     = var.patch_window_cutoff
-  allow_unassociated_targets = false
-  tags                       = { Name = "${var.project_tag}-patch-window" }
-}
-
-resource "aws_ssm_maintenance_window_target" "patch" {
-  window_id     = aws_ssm_maintenance_window.patch.id
-  name          = "${var.project_tag}-patch-targets"
-  resource_type = "INSTANCE"
-
-  targets {
-    key    = "tag:PatchGroup"
-    values = ["Windows-Production"]
-  }
-}
-
-resource "aws_ssm_maintenance_window_task" "patch" {
-  window_id       = aws_ssm_maintenance_window.patch.id
-  name            = "${var.project_tag}-run-patch-baseline"
-  task_type       = "RUN_COMMAND"
-  task_arn        = "AWS-RunPatchBaseline"
-  priority        = 1
-  max_concurrency = "50%"
-  max_errors      = "25%"
-
-  targets {
-    key    = "WindowTargetIds"
-    values = [aws_ssm_maintenance_window_target.patch.id]
+  viewer_certificate {
+    cloudfront_default_certificate = true
   }
 
-  task_invocation_parameters {
-    run_command_parameters {
-      timeout_seconds = 3600
-
-      parameter {
-        name   = "Operation"
-        values = ["Install"]
-      }
-      parameter {
-        name   = "RebootOption"
-        values = ["RebootIfNeeded"]
-      }
-    }
+  restrictions {
+    geo_restriction { restriction_type = "none" }
   }
 }
 
 # ============================================================
-# Outputs
+# OUTPUTS
 # ============================================================
 
 output "vpc_id" {
   description = "VPC ID"
-  value       = local.vpc_id
+  value       = aws_vpc.main.id
 }
 
-output "managed_ad_id" {
-  description = "Managed AD directory ID"
-  value       = aws_directory_service_directory.managed_ad.id
+output "alb_dns_name" {
+  description = "ALB DNS name"
+  value       = aws_lb.jenkins.dns_name
 }
 
-output "managed_ad_dns_ips" {
-  description = "Managed AD DNS IPs"
-  value       = aws_directory_service_directory.managed_ad.dns_ip_addresses
+output "cloudfront_domain" {
+  description = "CloudFront distribution domain"
+  value       = aws_cloudfront_distribution.jenkins.domain_name
+}
+
+output "jenkins_url" {
+  description = "Jenkins URL via CloudFront"
+  value       = "https://${aws_cloudfront_distribution.jenkins.domain_name}"
+}
+
+output "efs_id" {
+  description = "EFS file system ID"
+  value       = local.efs_id
 }
 
 output "asg_name" {
-  description = "Windows ASG name"
-  value       = aws_autoscaling_group.windows.name
+  description = "Jenkins Agents ASG name"
+  value       = aws_autoscaling_group.jenkins_agents.name
 }
 
-output "patch_baseline_id" {
-  description = "SSM Patch Baseline ID"
-  value       = aws_ssm_patch_baseline.windows.id
-}
-
-output "maintenance_window_id" {
-  description = "SSM Maintenance Window ID"
-  value       = aws_ssm_maintenance_window.patch.id
-}
-
-output "ami_id" {
-  description = "AMI ID used by the launch template"
-  value       = local.ami_id
+output "s3_bucket" {
+  description = "Jenkins artifacts S3 bucket"
+  value       = local.s3_bucket_id
 }
