@@ -590,21 +590,35 @@ resource "aws_lb_listener" "http" {
 }
 
 # ============================================================
-# JENKINS CONTROLLER EC2 INSTANCES (2, one per AZ)
+# LAUNCH TEMPLATE + ASG — Jenkins Controller (Windows Server 2019)
 # ============================================================
 
-resource "aws_instance" "jenkins_controller" {
-  count                  = 2
-  ami                    = var.windows_ami_id
-  instance_type          = var.controller_instance_type
-  subnet_id              = aws_subnet.private_controller[count.index].id
-  iam_instance_profile   = local.controller_instance_profile
+resource "aws_launch_template" "jenkins_controller" {
+  name_prefix   = "${local.name_prefix}-controller-"
+  image_id      = var.windows_ami_id
+  instance_type = var.controller_instance_type
+
+  iam_instance_profile { name = local.controller_instance_profile }
+
   vpc_security_group_ids = [aws_security_group.jenkins_controller.id]
 
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 2
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(local.tags, {
+      Name = "${local.name_prefix}-controller"
+      Role = "JenkinsController"
+    })
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags          = merge(local.tags, { Name = "${local.name_prefix}-controller-vol" })
   }
 
   user_data = base64encode(<<-EOF
@@ -631,7 +645,7 @@ resource "aws_instance" "jenkins_controller" {
     choco install corretto17jdk -y
     choco install jenkins -y
 
-    # Configure Jenkins to use shared EFS home
+    # Jenkins runs on port 8080 by default
     Start-Sleep -Seconds 30
     Set-Service Jenkins -StartupType Automatic
     Write-Output "Controller bootstrap complete. Jenkins on port 8080."
@@ -639,18 +653,43 @@ resource "aws_instance" "jenkins_controller" {
   EOF
   )
 
-  tags = merge(local.tags, {
-    Name = "${local.name_prefix}-controller-${count.index + 1}"
-    Role = "JenkinsController"
-  })
+  lifecycle { create_before_destroy = true }
+  tags = merge(local.tags, { Name = "${local.name_prefix}-controller-lt" })
 }
 
-# Register controllers to ALB target group
-resource "aws_lb_target_group_attachment" "jenkins_controller" {
-  count            = 2
-  target_group_arn = aws_lb_target_group.jenkins.arn
-  target_id        = aws_instance.jenkins_controller[count.index].id
-  port             = 8080
+resource "aws_autoscaling_group" "jenkins_controllers" {
+  name                      = "${local.name_prefix}-controllers-asg"
+  desired_capacity          = 2
+  min_size                  = 2
+  max_size                  = 2
+  vpc_zone_identifier       = aws_subnet.private_controller[*].id
+  health_check_type         = "ELB"
+  health_check_grace_period = 600
+  wait_for_capacity_timeout = "15m"
+  target_group_arns         = [aws_lb_target_group.jenkins.arn]
+
+  launch_template {
+    id      = aws_launch_template.jenkins_controller.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "${local.name_prefix}-controller"
+    propagate_at_launch = true
+  }
+  tag {
+    key                 = "Role"
+    value               = "JenkinsController"
+    propagate_at_launch = true
+  }
+  tag {
+    key                 = "auto-delete"
+    value               = "no"
+    propagate_at_launch = true
+  }
+
+  depends_on = [aws_nat_gateway.main]
 }
 
 # ============================================================
