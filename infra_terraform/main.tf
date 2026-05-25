@@ -301,6 +301,14 @@ resource "aws_security_group" "efs" {
     security_groups = [aws_security_group.jenkins_agent.id]
   }
 
+  ingress {
+    description     = "NFS from Samba bridge"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [aws_security_group.efs_samba.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -773,6 +781,7 @@ resource "aws_launch_template" "jenkins_controller" {
     net use Z: "\\${aws_instance.efs_samba.private_ip}\efshare" /persistent:yes
 
     Write-Output "Controller bootstrap complete. Jenkins on port 8080."
+    New-NetFirewallRule -DisplayName "Jenkins 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
     </powershell>
   EOF
   )
