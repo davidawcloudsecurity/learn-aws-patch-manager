@@ -792,8 +792,8 @@ resource "aws_launch_template" "jenkins_controller" {
 
 resource "aws_autoscaling_group" "jenkins_controllers" {
   name                      = "${local.name_prefix}-controllers-asg"
-  desired_capacity          = 2
-  min_size                  = 2
+  desired_capacity          = 1
+  min_size                  = 1
   max_size                  = 2
   vpc_zone_identifier       = aws_subnet.private_controller[*].id
   health_check_type         = "ELB"
