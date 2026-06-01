@@ -1,3 +1,86 @@
+# Here's how to set up IIS on Windows Server 2019 via PowerShell (run as Administrator):
+```
+Here's how to set up IIS on Windows Server 2019 via PowerShell (run as Administrator):
+
+**Step 1: Install IIS**
+
+```powershell
+Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+```
+
+This installs IIS with the management console. IIS starts automatically after install.
+
+**Step 2: Verify it's running**
+
+```powershell
+Get-Service W3SVC
+```
+
+Should show `Running`. Then browse to `http://localhost` — you'll see the default IIS welcome page.
+
+**Step 3: Deploy your site**
+
+The default web root is:
+```
+C:\inetpub\wwwroot\
+```
+
+Drop your HTML/files there, or create a new site:
+
+```powershell
+# Create a folder for your site
+New-Item -Path "C:\inetpub\mysite" -ItemType Directory
+
+# Add a test page
+Set-Content -Path "C:\inetpub\mysite\index.html" -Value "<h1>Hello from IIS</h1>"
+
+# Create a new IIS site
+Import-Module WebAdministration
+New-IISSite -Name "MySite" -PhysicalPath "C:\inetpub\mysite" -BindingInformation "*:8080:"
+```
+
+This creates a site listening on port 8080.
+
+**Step 4: Open the firewall**
+
+```powershell
+New-NetFirewallRule -DisplayName "Allow HTTP 80" -Direction Inbound -Port 80 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "Allow HTTP 8080" -Direction Inbound -Port 8080 -Protocol TCP -Action Allow
+```
+
+---
+
+**Optional: Install ASP.NET support** (if hosting .NET apps like your TodoApp)
+
+```powershell
+Install-WindowsFeature -Name Web-Asp-Net45, Web-Net-Ext45, NET-Framework-45-ASPNET
+```
+
+For .NET Core / .NET 6+ apps, install the hosting bundle instead:
+```powershell
+# Download and install .NET Hosting Bundle
+Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile "$env:TEMP\dotnet-install.ps1"
+```
+Or download the ASP.NET Core Hosting Bundle from https://dotnet.microsoft.com/download/dotnet
+
+---
+
+**Useful IIS commands:**
+
+```powershell
+# List all sites
+Get-IISSite
+
+# Stop/Start a site
+Stop-IISSite -Name "MySite"
+Start-IISSite -Name "MySite"
+
+# Restart IIS entirely
+iisreset
+```
+
+Since your ALB health check hits `/` on port 80, the default IIS site will respond with a 200 out of the box — so your ALB target group health checks will pass immediately after IIS is installed.
+```
 # How to check for AD join
 ```
 # Check AD Domain Join Status
