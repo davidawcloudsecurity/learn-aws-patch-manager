@@ -300,7 +300,7 @@ data "aws_ami" "windows_2019" {
 }
 
 # ============================================================
-# Launch Template
+# Launch Template (with IIS userdata)
 # ============================================================
 
 resource "aws_launch_template" "windows" {
@@ -336,13 +336,36 @@ resource "aws_launch_template" "windows" {
     http_put_response_hop_limit = 2
   }
 
-  user_data = base64encode(<<-EOF
-    <powershell>
-    Start-Service AmazonSSMAgent
-    Set-Service AmazonSSMAgent -StartupType Automatic
-    Write-Output "Bootstrap complete. AD join handled by SSM Association."
-    </powershell>
-  EOF
+  user_data = base64encode(<<-USERDATA
+<powershell>
+# ---- SSM Agent ----
+Start-Service AmazonSSMAgent
+Set-Service AmazonSSMAgent -StartupType Automatic
+
+# ---- Install IIS ----
+Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+Start-Service W3SVC
+Set-Service W3SVC -StartupType Automatic
+
+# ---- Deploy default health-check page ----
+$html = @"
+<html>
+<head><title>Health Check</title></head>
+<body>
+<h1>Healthy</h1>
+<p>Instance: $($env:COMPUTERNAME)</p>
+<p>Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC' -AsUTC)</p>
+</body>
+</html>
+"@
+Set-Content -Path "C:\inetpub\wwwroot\index.html" -Value $html
+
+# ---- Firewall rule for HTTP ----
+New-NetFirewallRule -DisplayName "Allow HTTP Inbound" -Direction Inbound -Port 80 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
+
+Write-Output "Bootstrap complete. IIS installed and running. AD join handled by SSM Association."
+</powershell>
+USERDATA
   )
 
   lifecycle { create_before_destroy = true }
@@ -401,100 +424,6 @@ resource "aws_autoscaling_group" "windows" {
     aws_ssm_association.ad_join,
     aws_nat_gateway.nat
   ]
-}
-
-# ============================================================
-# SSM Patch Baseline (Windows)
-# ============================================================
-
-resource "aws_ssm_patch_baseline" "windows" {
-  name             = "${var.project_tag}-windows-baseline"
-  operating_system = "WINDOWS"
-
-  approval_rule {
-    approve_after_days = 7
-    compliance_level   = "CRITICAL"
-
-    patch_filter {
-      key    = "CLASSIFICATION"
-      values = ["CriticalUpdates", "SecurityUpdates"]
-    }
-    patch_filter {
-      key    = "MSRC_SEVERITY"
-      values = ["Critical", "Important"]
-    }
-  }
-
-  approval_rule {
-    approve_after_days = 14
-    compliance_level   = "HIGH"
-
-    patch_filter {
-      key    = "CLASSIFICATION"
-      values = ["UpdateRollups", "Updates"]
-    }
-  }
-
-  tags = { Name = "${var.project_tag}-windows-patch-baseline" }
-}
-
-resource "aws_ssm_patch_group" "windows" {
-  baseline_id = aws_ssm_patch_baseline.windows.id
-  patch_group = "Windows-Production"
-}
-
-# ============================================================
-# SSM Maintenance Window + Task
-# ============================================================
-
-resource "aws_ssm_maintenance_window" "patch" {
-  name                       = "${var.project_tag}-patch-window"
-  schedule                   = var.patch_schedule
-  duration                   = var.patch_window_duration
-  cutoff                     = var.patch_window_cutoff
-  allow_unassociated_targets = false
-  tags                       = { Name = "${var.project_tag}-patch-window" }
-}
-
-resource "aws_ssm_maintenance_window_target" "patch" {
-  window_id     = aws_ssm_maintenance_window.patch.id
-  name          = "${var.project_tag}-patch-targets"
-  resource_type = "INSTANCE"
-
-  targets {
-    key    = "tag:PatchGroup"
-    values = ["Windows-Production"]
-  }
-}
-
-resource "aws_ssm_maintenance_window_task" "patch" {
-  window_id       = aws_ssm_maintenance_window.patch.id
-  name            = "${var.project_tag}-run-patch-baseline"
-  task_type       = "RUN_COMMAND"
-  task_arn        = "AWS-RunPatchBaseline"
-  priority        = 1
-  max_concurrency = "50%"
-  max_errors      = "25%"
-
-  targets {
-    key    = "WindowTargetIds"
-    values = [aws_ssm_maintenance_window_target.patch.id]
-  }
-
-  task_invocation_parameters {
-    run_command_parameters {
-      timeout_seconds = 3600
-
-      parameter {
-        name   = "Operation"
-        values = ["Install"]
-      }
-      parameter {
-        name   = "RebootOption"
-        values = ["RebootIfNeeded"]
-      }
-    }
-  }
 }
 
 # ============================================================
@@ -594,6 +523,100 @@ resource "aws_lb_listener" "http" {
 resource "aws_autoscaling_attachment" "alb" {
   autoscaling_group_name = aws_autoscaling_group.windows.name
   lb_target_group_arn    = aws_lb_target_group.windows.arn
+}
+
+# ============================================================
+# SSM Patch Baseline (Windows)
+# ============================================================
+
+resource "aws_ssm_patch_baseline" "windows" {
+  name             = "${var.project_tag}-windows-baseline"
+  operating_system = "WINDOWS"
+
+  approval_rule {
+    approve_after_days = 7
+    compliance_level   = "CRITICAL"
+
+    patch_filter {
+      key    = "CLASSIFICATION"
+      values = ["CriticalUpdates", "SecurityUpdates"]
+    }
+    patch_filter {
+      key    = "MSRC_SEVERITY"
+      values = ["Critical", "Important"]
+    }
+  }
+
+  approval_rule {
+    approve_after_days = 14
+    compliance_level   = "HIGH"
+
+    patch_filter {
+      key    = "CLASSIFICATION"
+      values = ["UpdateRollups", "Updates"]
+    }
+  }
+
+  tags = { Name = "${var.project_tag}-windows-patch-baseline" }
+}
+
+resource "aws_ssm_patch_group" "windows" {
+  baseline_id = aws_ssm_patch_baseline.windows.id
+  patch_group = "Windows-Production"
+}
+
+# ============================================================
+# SSM Maintenance Window + Task
+# ============================================================
+
+resource "aws_ssm_maintenance_window" "patch" {
+  name                       = "${var.project_tag}-patch-window"
+  schedule                   = var.patch_schedule
+  duration                   = var.patch_window_duration
+  cutoff                     = var.patch_window_cutoff
+  allow_unassociated_targets = false
+  tags                       = { Name = "${var.project_tag}-patch-window" }
+}
+
+resource "aws_ssm_maintenance_window_target" "patch" {
+  window_id     = aws_ssm_maintenance_window.patch.id
+  name          = "${var.project_tag}-patch-targets"
+  resource_type = "INSTANCE"
+
+  targets {
+    key    = "tag:PatchGroup"
+    values = ["Windows-Production"]
+  }
+}
+
+resource "aws_ssm_maintenance_window_task" "patch" {
+  window_id       = aws_ssm_maintenance_window.patch.id
+  name            = "${var.project_tag}-run-patch-baseline"
+  task_type       = "RUN_COMMAND"
+  task_arn        = "AWS-RunPatchBaseline"
+  priority        = 1
+  max_concurrency = "50%"
+  max_errors      = "25%"
+
+  targets {
+    key    = "WindowTargetIds"
+    values = [aws_ssm_maintenance_window_target.patch.id]
+  }
+
+  task_invocation_parameters {
+    run_command_parameters {
+      timeout_seconds = 3600
+
+      parameter {
+        name   = "Operation"
+        values = ["Install"]
+      }
+      parameter {
+        name   = "RebootOption"
+        values = ["RebootIfNeeded"]
+      }
+    }
+  }
 }
 
 # ============================================================
