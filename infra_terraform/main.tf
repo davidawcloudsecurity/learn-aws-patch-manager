@@ -269,6 +269,15 @@ resource "aws_security_group" "windows_asg" {
     description = "LDAPS"
   }
 
+  # HTTP from ALB (health checks + traffic forwarding)
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+    description     = "HTTP from ALB"
+  }
+
   # All outbound (patching + SSM endpoints)
   egress {
     from_port   = 0
