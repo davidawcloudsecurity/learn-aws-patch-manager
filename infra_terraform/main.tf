@@ -471,17 +471,6 @@ resource "aws_security_group" "alb" {
   tags = { Name = "${var.project_tag}-alb-sg" }
 }
 
-# Allow ALB to reach ASG instances on port 80
-resource "aws_security_group_rule" "asg_from_alb" {
-  type                     = "ingress"
-  from_port                = 80
-  to_port                  = 80
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.windows_asg.id
-  source_security_group_id = aws_security_group.alb.id
-  description              = "HTTP from ALB"
-}
-
 # ============================================================
 # Application Load Balancer
 # ============================================================
