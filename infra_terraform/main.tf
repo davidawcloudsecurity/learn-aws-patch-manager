@@ -365,7 +365,7 @@ try {
 
     # ---- Install IIS ----
     Log "Installing IIS..."
-    $result = Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+    $result = Install-WindowsFeature -Name Web-Server -IncludeManagementTools -Confirm:$false
     if (-not $result.Success) {
         throw "IIS installation failed. ExitCode: $($result.ExitCode)"
     }
