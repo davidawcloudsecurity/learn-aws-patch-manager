@@ -498,6 +498,105 @@ resource "aws_ssm_maintenance_window_task" "patch" {
 }
 
 # ============================================================
+# ALB Security Group (allows HTTP/HTTPS from VPC CIDR)
+# ============================================================
+
+resource "aws_security_group" "alb" {
+  name        = "${var.project_tag}-alb-sg"
+  description = "ALB security group - allows HTTP/HTTPS from VPC CIDR"
+  vpc_id      = local.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "HTTP from VPC"
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "HTTPS from VPC"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound"
+  }
+
+  tags = { Name = "${var.project_tag}-alb-sg" }
+}
+
+# Allow ALB to reach ASG instances on port 80
+resource "aws_security_group_rule" "asg_from_alb" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.windows_asg.id
+  source_security_group_id = aws_security_group.alb.id
+  description              = "HTTP from ALB"
+}
+
+# ============================================================
+# Application Load Balancer
+# ============================================================
+
+resource "aws_lb" "main" {
+  name               = "${var.project_tag}-alb"
+  internal           = true
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = aws_subnet.public[*].id
+
+  tags = { Name = "${var.project_tag}-alb", "auto-delete" = "no" }
+}
+
+resource "aws_lb_target_group" "windows" {
+  name     = "${var.project_tag}-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = local.vpc_id
+
+  health_check {
+    enabled             = true
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+    matcher             = "200-399"
+  }
+
+  tags = { Name = "${var.project_tag}-tg" }
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.windows.arn
+  }
+}
+
+# Attach ASG to ALB target group
+resource "aws_autoscaling_attachment" "alb" {
+  autoscaling_group_name = aws_autoscaling_group.windows.name
+  lb_target_group_arn    = aws_lb_target_group.windows.arn
+}
+
+# ============================================================
 # Outputs
 # ============================================================
 
@@ -534,4 +633,19 @@ output "maintenance_window_id" {
 output "ami_id" {
   description = "AMI ID used by the launch template"
   value       = local.ami_id
+}
+
+output "alb_dns_name" {
+  description = "ALB DNS name"
+  value       = aws_lb.main.dns_name
+}
+
+output "alb_arn" {
+  description = "ALB ARN"
+  value       = aws_lb.main.arn
+}
+
+output "alb_target_group_arn" {
+  description = "ALB Target Group ARN"
+  value       = aws_lb_target_group.windows.arn
 }
