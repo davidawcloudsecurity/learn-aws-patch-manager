@@ -1,3 +1,29 @@
+# How to check for AD join
+```
+# Check AD Domain Join Status
+
+$computerSystem = Get-WmiObject -Class Win32_ComputerSystem
+
+Write-Host "Computer Name : $($computerSystem.Name)"
+Write-Host "Domain        : $($computerSystem.Domain)"
+Write-Host "Part of Domain: $($computerSystem.PartOfDomain)"
+
+if ($computerSystem.PartOfDomain) {
+    Write-Host "`nThis machine IS joined to Active Directory domain: $($computerSystem.Domain)" -ForegroundColor Green
+
+    # Additional AD details
+    try {
+        $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()
+        Write-Host "Domain Controller: $($domain.PdcRoleOwner.Name)"
+        Write-Host "Forest           : $($domain.Forest.Name)"
+    } catch {
+        Write-Host "Could not retrieve additional domain details: $_" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "`nThis machine is NOT joined to Active Directory. It is in a workgroup: $($computerSystem.Domain)" -ForegroundColor Red
+}
+```
+
 # AWS Patch Manager + ASG + Managed AD (Windows)
 
 ## Architecture
