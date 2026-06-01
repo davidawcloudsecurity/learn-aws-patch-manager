@@ -1,0 +1,511 @@
+### Script to import list of cab
+```
+$WSUSServer = Get-WsusServer -Name "localhost" -PortNumber 8530
+$updateIds = @(
+    "e20ecd7e-9517-4f2d-9530-5cd83d0c1e9f",
+    "135c0c28-3af4-46a2-9076-826ad62b0374",
+    "ab71f1cc-15f5-4d3a-b12c-d1664044e79f",
+    "6b3d0f8d-b508-4737-8ec5-19c89cd049ed",
+    "3929eae1-c66b-4fae-ac30-e6add683fee2"
+)
+$wsus = Get-WsusServer
+$subscription = $wsus.GetSubscription()
+
+foreach ($updateId in $updateIds) {
+    Write-Host "Importing update ID: $updateId"
+    
+    try {
+        $wsus.ImportUpdateFromCatalogSite($updateId, @())
+        Write-Host "Import successful for $updateId"
+    } catch {
+        Write-Host "Import failed for $updateId : $($_.Exception.Message)"
+    }
+}
+
+# After imports complete, approve all
+$allComputers = $WSUSServer.GetComputerTargetGroups() | Where-Object { $_.Name -eq "All Computers" }
+$WSUSServer.GetUpdates() | 
+    Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | 
+    ForEach-Object { 
+        Write-Host "Approving: $($_.Title)"
+        $_.Approve("Install", $allComputers) 
+    }
+```
+### Scripts to import manual download cab / KB into c:\wsus\wsuscontent
+```
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+reg add HKLM\SOFTWARE\Microsoft\.NETFramework\v4.0.30319 /v SchUseStrongCrypto /t REG_DWORD /d 1 /f
+reg add HKLM\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319 /v SchUseStrongCrypto /t REG_DWORD /d 1 /f
+iisreset
+Restart-Service WSUSService
+Start-Sleep -Seconds 10
+
+$updateId = "da327f7c-5d64-43dc-9671-72723a5074f3"
+$wsus = Get-WsusServer
+$subscription = $wsus.GetSubscription()
+
+# Start synchronization to establish connection
+Write-Host "Starting synchronization to establish connection..."
+$subscription.StartSynchronization()
+
+# Wait a few seconds for connection to establish
+Start-Sleep -Seconds 5
+
+# Now cancel it so it doesn't download everything
+Write-Host "Stopping synchronization..."
+$subscription.StopSynchronization()
+
+# Check if it's stopped
+Start-Sleep -Seconds 2
+$status = $subscription.GetSynchronizationStatus()
+Write-Host "Sync status: $status"
+
+# Now try your import
+Write-Host "`nAttempting import..."
+
+try {
+    $wsus.ImportUpdateFromCatalogSite($updateId, @())
+    Write-Host "Import successful!"
+} catch {
+    Write-Host "Import failed: $($_.Exception.Message)"
+}
+
+# (Get-WsusServer).SearchUpdate('KbNumber') to check if the KB exist
+$wsus = Get-WsusServer -Name "localhost" -PortNumber 8530
+$wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | Select-Object Title, KnowledgebaseArticles
+```
+### how to approve the kb in wsus in powershell
+```powershell
+# Connect to WSUS server
+$wsus = Get-WsusServer -Name "localhost" -PortNumber 8530
+
+# Approve a specific KB for all computers
+$update = $wsus.SearchUpdates("KB5068791") | Where-Object { $_.Title -match "KB5068791" }
+$group = $wsus.GetComputerTargetGroups() | Where-Object { $_.Name -eq "All Computers" }
+$update | ForEach-Object { $_.Approve("Install", $group) }
+```
+
+To approve for a **specific computer group** instead:
+
+```powershell
+$group = $wsus.GetComputerTargetGroups() | Where-Object { $_.Name -eq "Your Group Name" }
+$update | ForEach-Object { $_.Approve("Install", $group) }
+```
+
+Some useful variations:
+
+```powershell
+# List all available updates (not yet approved)
+$wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | Select-Object Title, KnowledgebaseArticles
+
+# Approve ALL unapproved updates
+$allComputers = $wsus.GetComputerTargetGroups() | Where-Object { $_.Name -eq "All Computers" }
+$wsus.GetUpdates() | Where-Object { -not $_.IsApproved -and -not $_.IsDeclined } | ForEach-Object { $_.Approve("Install", $allComputers) }
+
+# Check approval status of a KB
+$wsus.SearchUpdates("KB5068791") | Select-Object Title, IsApproved, CreationDate
+# List only approved updates:
+$wsus.GetUpdates() | Where-Object { $_.IsApproved } | Select-Object Title, KnowledgebaseArticles
+```
+### Logs to debug for wsus
+```
+Get-Content "C:\Program Files\Update Services\LogFiles\SoftwareDistribution.log" -Wait -Tail 10
+Get-Content "C:\Program Files\Update Services\LogFiles\Change.log" -Wait -Tail 10
+```
+### Fix the client reporting to WSUS
+```
+# Stop Windows Update service
+Stop-Service wuauserv -Force
+
+# Delete the SusClientId (forces new registration)
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Name "SusClientId" -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Name "SusClientIDValidation" -ErrorAction SilentlyContinue
+
+# Clear the entire WindowsUpdate key to force fresh registration
+Remove-Item "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Recurse -Force -ErrorAction SilentlyContinue
+
+# Delete the cached update data
+Remove-Item "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+# Start Windows Update service
+Start-Service wuauserv
+
+# Wait a moment
+Start-Sleep -Seconds 5
+
+# Force re-registration with WSUS
+(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0").Updates | Where-Object {($_.Categories|%{$_.Name}) -contains "Security Updates"} | Select-Object Title
+wuauclt /reportnow
+
+```
+### Remove WSUS
+```
+# Remove WSUS server settings
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -ErrorAction SilentlyContinue
+
+# Disable "Use WSUS" flag and remove AU overrides
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v UseWUServer /f
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v NoAutoUpdate /f
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v AUOptions /f
+
+# Restart Windows Update service to apply changes
+Restart-Service wuauserv
+```
+### Sync WSUS
+```
+How WSUS Actually Works:
+Method 1: Automatic Sync (Recommended)
+
+# WSUS downloads updates automatically from Microsoft
+$WSUSServer = Get-WsusServer
+$subscription = $WSUSServer.GetSubscription()
+
+# Start sync - WSUS will download all approved updates automatically
+$subscription.StartSynchronization()
+
+# Check what updates are available after sync
+Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.KnowledgebaseArticles -contains "5068791"}
+
+Two Ways WSUS Gets Updates:
+1. Automatic Synchronization (Normal Way):
+
+WSUS connects to Microsoft Update
+Downloads metadata and update files automatically
+You just approve/decline what you want to deploy
+No manual MSU downloads needed
+2. Manual Import (Only for Special Cases):
+
+For updates not available through normal sync
+For offline environments
+For custom/third-party updates
+This is what you were trying to do with the MSU
+Configure WSUS to Sync Automatically:
+1. Check current sync settings:
+
+$WSUSServer = Get-WsusServer
+$subscription = $WSUSServer.GetSubscription()
+$subscription.GetSubscriptionProperties()
+
+2. Configure automatic sync:
+
+# Set sync schedule (daily at 3 AM)
+$subscription.SynchronizeAutomatically = $true
+$subscription.SynchronizeAutomaticallyTimeOfDay = (New-TimeSpan -Hours 3)
+$subscription.NumberOfSynchronizationsPerDay = 1
+$subscription.Save()
+
+3. Manual sync right now:
+
+$subscription.StartSynchronization()
+
+Normal WSUS Workflow:
+WSUS syncs with Microsoft (automatically downloads updates)
+You review available updates in WSUS console
+You approve updates for deployment
+Client computers download from your WSUS server
+Check if KB5068791 is Available via Sync:
+# After sync completes, search for your update
+$WSUSServer = Get-WsusServer
+$Update = Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.KnowledgebaseArticles -contains "5068791"}
+
+if ($Update) {
+    Write-Host "Found: $($Update.Title)"
+    Write-Host "Classification: $($Update.Classification)"
+    
+    # Approve it for deployment
+    $Update | Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+} else {
+    Write-Host "Update not available through sync - may need manual import"
+}
+
+Summary:
+Normal process: WSUS syncs → You approve → Clients install
+Manual MSU: Only needed for special cases or offline scenarios
+Your situation: Try sync first, manual import only if the update isn't available through normal channels
+You can delete that corrupted MSU file and just let WSUS sync normally. Much easier!
+
+# Clean up the manual MSU file
+Remove-Item "C:\WSUS\WsusContent\windows10.0-kb5068791-x64_a8b1b1b6c7b6b673c5a5f32772749eb2bb80c88b.msu" -Force
+
+# Let WSUS do its job automatically
+$WSUSServer = Get-WsusServer
+$WSUSServer.GetSubscription().StartSynchronization()
+```
+### Recommended Steps:
+```
+1. First, try WSUSUTIL import:
+
+cd "C:\Program Files\Update Services\Tools"
+wsusutil.exe import "C:\WSUS\WsusContent\windows10.0-kb5068791-x64_a8b1b1b6c7b6b673c5a5f32772749eb2bb80c88b.msu" "C:\temp\import.log"
+
+2. Check the import log:
+
+Get-Content "C:\temp\import.log"
+
+3. Verify the import worked:
+
+$WSUSServer = Get-WsusServer
+$Update = Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.KnowledgebaseArticles -contains "5068791"}
+
+if ($Update) {
+    Write-Host "SUCCESS: Update imported - $($Update.Title)"
+    # Approve it
+    $Update | Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+} else {
+    Write-Host "Import failed - check import.log for errors"
+}
+```
+### Check if WSUS is setup
+```
+Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -ErrorAction SilentlyContinue
+```
+### Setup WSUS
+```
+# Set WSUS server URL (replace with your WSUS server)
+$wsusServer = "http://your-wsus-server:8530"
+
+# Configure Windows Update to use WSUS
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v WUServer /t REG_SZ /d $wsusServer /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v WUStatusServer /t REG_SZ /d $wsusServer /f
+
+# Enable client-side targeting (assign to a target group)
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v TargetGroup /t REG_SZ /d "All Computers" /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v TargetGroupEnabled /t REG_DWORD /d 1 /f
+
+# Configure Automatic Updates to use WSUS
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v UseWUServer /t REG_DWORD /d 1 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v NoAutoUpdate /t REG_DWORD /d 0 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v AUOptions /t REG_DWORD /d 3 /f
+
+# Restart Windows Update service
+Restart-Service wuauserv
+
+# Force detection
+wuauclt /detectnow /reportnow
+```
+### Verify WSUS
+```
+Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer"
+Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer"
+```
+### Restart WSUS
+```
+Restart-Service -Name "wuauserv"
+```
+WSUS Server Administration (Approving Updates)
+1. Install WSUS PowerShell Module:
+
+### On Windows Server with WSUS role
+Import-Module UpdateServices
+
+2. Connect to WSUS Server:
+
+$WSUSServer = Get-WsusServer -Name "wsus.davidawcloudsecurity" -PortNumber 8530
+
+3. Approve Specific KB Updates:
+
+### Get a specific KB update
+$Update = Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.KnowledgebaseArticles -contains "KB5034441"}
+
+### Approve for installation to all computers
+$Update | Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+
+### Approve for a specific computer group
+$Update | Approve-WsusUpdate -Action Install -TargetGroupName "Production Servers"
+
+4. Approve Multiple Security Updates:
+
+### Get all unapproved security updates
+$SecurityUpdates = Get-WsusUpdate -UpdateServer $WSUSServer -Classification "Security Updates" -Approval "Unapproved"
+
+### Approve all security updates for installation
+$SecurityUpdates | Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+
+5. Approve Updates by Title Pattern:
+
+### Approve all Windows 11 security updates
+```
+Get-WsusUpdate -UpdateServer $WSUSServer | 
+Where-Object {$_.Title -like "*Windows 11*" -and $_.Classification -eq "Security Updates"} | 
+Approve-WsusUpdate -Action Install -TargetGroupName "Windows 11 Computers"
+```
+Client-Side Configuration
+1. Configure Windows Update Settings:
+
+# Set automatic update options
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUOptions" -Value 4
+
+# Configure installation schedule
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "ScheduledInstallDay" -Value 0
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "ScheduledInstallTime" -Value 3
+
+2. Force Update Detection and Installation:
+
+# Trigger update detection
+$UpdateSession = New-Object -ComObject Microsoft.Update.Session
+$UpdateSearcher = $UpdateSession.CreateUpdateSearcher()
+$SearchResult = $UpdateSearcher.Search("IsInstalled=0 and Type='Software'")
+
+# Install specific updates
+$UpdatesToInstall = New-Object -ComObject Microsoft.Update.UpdateColl
+foreach ($Update in $SearchResult.Updates) {
+    if ($Update.KBArticleIDs -contains "5034441") {  # Specific KB
+        $UpdatesToInstall.Add($Update)
+    }
+}
+
+if ($UpdatesToInstall.Count -gt 0) {
+    $Installer = $UpdateSession.CreateUpdateInstaller()
+    $Installer.Updates = $UpdatesToInstall
+    $InstallationResult = $Installer.Install()
+}
+
+Advanced WSUS Management Examples
+1. Bulk Approve Updates by Category:
+
+# Approve all critical updates
+Get-WsusUpdate -UpdateServer $WSUSServer -Classification "Critical Updates" -Approval "Unapproved" | 
+Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+
+# Approve definition updates
+Get-WsusUpdate -UpdateServer $WSUSServer -Classification "Definition Updates" -Approval "Unapproved" | 
+Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+
+2. Decline Superseded Updates:
+
+Get-WsusUpdate -UpdateServer $WSUSServer | Where-Object {$_.IsSuperseded -eq $true} | 
+Deny-WsusUpdate
+
+3. Create Computer Groups and Approve Updates:
+
+### Create a new computer group
+Add-WsusComputer -UpdateServer $WSUSServer -ComputerTargetGroupName "Test Servers"
+
+### Approve updates for specific group
+Get-WsusUpdate -UpdateServer $WSUSServer -Classification "Security Updates" | 
+Approve-WsusUpdate -Action Install -TargetGroupName "Test Servers"
+
+4. Get Update Approval Status:
+
+### Check approval status of specific KB
+Get-WsusUpdate -UpdateServer $WSUSServer | 
+Where-Object {$_.KnowledgebaseArticles -contains "KB5034441"} | 
+Get-WsusUpdateApproval
+
+5. Automated Monthly Approval Script:
+
+### Approve all security and critical updates released in the last 30 days
+```
+$LastMonth = (Get-Date).AddDays(-30)
+Get-WsusUpdate -UpdateServer $WSUSServer | 
+Where-Object {
+    ($_.Classification -eq "Security Updates" -or $_.Classification -eq "Critical Updates") -and
+    $_.CreationDate -gt $LastMonth -and
+    $_.IsApproved -eq $false
+} | 
+Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+
+These PowerShell commands give you comprehensive control over WSUS update management and client configuration. The WSUS PowerShell module provides the most robust way to manage updates on the server side.
+
+How to Import MSU into WSUS
+Method 1: WSUS Console (GUI)
+
+Open WSUS Administration Console:
+
+Server Manager → Tools → Windows Server Update Services
+Import the Update:
+
+Right-click on "Updates" in the left pane
+Select "Import Updates..."
+Browse and select your MSU file
+Click "Next" and follow the wizard
+Approve the Update:
+
+Navigate to Updates → All Updates
+Find your imported update
+Right-click → Approve
+Select target computer groups
+Choose "Approved for Install"
+```
+### Method 2: Import the MSU file into WSUS
+$WSUSServer = Get-WsusServer -Name "wsus.davidawcloudsecurity" -PortNumber 8530
+
+### Import the update
+Import-WsusUpdate -UpdateServer $WSUSServer -MsuPath "C:\path\to\your\update.msu"
+
+### Find and approve the imported update
+$ImportedUpdate = Get-WsusUpdate -UpdateServer $WSUSServer | 
+    Where-Object {$_.KnowledgebaseArticles -contains "KB5034441"}  # Replace with your KB
+
+### Approve for installation
+$ImportedUpdate | Approve-WsusUpdate -Action Install -TargetGroupName "All Computers"
+
+Method 3: Using WSUS Import Tool
+
+### Alternative import method
+$WSUSServer = Get-WsusServer
+$UpdateScope = New-Object Microsoft.UpdateServices.Administration.UpdateScope
+$UpdateScope.ApprovedStates = [Microsoft.UpdateServices.Administration.ApprovedStates]::LatestRevisionApproved
+
+### Import and configure
+```
+Add-WsusUpdate -UpdateServer $WSUSServer -Path "C:\path\to\your\update.msu"
+
+Where WSUS Stores Updates
+WSUS Content Location:
+
+Default: C:\WSUS\WsusContent\
+Updates are stored in subfolders with GUID names
+You don't manually copy files here - use the import process
+Check WSUS Content Location:
+
+$WSUSServer = Get-WsusServer
+$WSUSServer.GetConfiguration().LocalContentCachePath
+
+Verify Import and Deployment
+1. Check if update was imported:
+
+Get-WsusUpdate -UpdateServer $WSUSServer | 
+Where-Object {$_.Title -like "*KB5034441*"} | 
+Select-Object Title, Classification, ApprovalState
+
+2. Monitor client update status:
+```
+### Check which computers need the update
+```
+Get-WsusComputer -UpdateServer $WSUSServer | 
+Get-WsusComputerUpdateStatus | 
+Where-Object {$_.UpdateTitle -like "*KB5034441*"}
+```
+3. Force client to check for updates: On client machines, run:
+```
+wuauclt /detectnow
+wuauclt /updatenow
+```
+Or in PowerShell:
+```
+(New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
+```
+### Best Practices
+1. Test Group First:
+
+### Create a test computer group
+```
+Approve updates for test group first
+Monitor for issues before broader deployment
+2. Staging Process:
+```
+### Approve for test group first
+$TestUpdate | Approve-WsusUpdate -Action Install -TargetGroupName "Test Computers"
+
+### After testing, approve for production
+$TestUpdate | Approve-WsusUpdate -Action Install -TargetGroupName "Production Computers"
+
+3. Monitor Deployment:
+
+### Check deployment progress
+```
+Get-WsusUpdateApproval -UpdateServer $WSUSServer | 
+Where-Object {$_.Update.KnowledgebaseArticles -contains "KB5034441"}
+```

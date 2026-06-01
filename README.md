@@ -1,545 +1,197 @@
-# learn-aws-patch-manager
+# Here's how to set up IIS on Windows Server 2019 via PowerShell (run as Administrator):
+```
+Here's how to set up IIS on Windows Server 2019 via PowerShell (run as Administrator):
 
-### How to read windowsupdatelog with guild
-```
-https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbols-windows-update
-```
-
-### How to troubleshoot error from Windows patch
-```
-https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/common-windows-update-errors
-https://learn.microsoft.com/en-us/troubleshoot/windows-server/installing-updates-features-roles/error-0x800f0922-installing-windows-updates?source=recommendations
-https://learn.microsoft.com/en-us/troubleshoot/windows-server/installing-updates-features-roles/fix-windows-update-errors#common-corruption-errors
-https://repost.aws/articles/AR4VPU_937RGCwpEYpJeMImw/how-do-i-troubleshoot-and-deep-dive-windows-patching-updates-installation-failures-on-ec2-windows-instances
-```
-### how to download from windows catalog
-```
-$ProgressPreference = 'SilentlyContinue'
-wget -o test.msu https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/05/windows10.0-kb5058392-x64_2881b28817b6e714e61b61a50de9f68605f02bd2.msu
-```
-### how to install kb using dism by extracting cab first
-```
-expand -F:*.cab .\windows10.0-kb5058392-x64_2881b28817b6e714e61b61a50de9f68605f02bd2.msu .
-Microsoft (R) File Expansion Utility
-Copyright (c) Microsoft Corporation. All rights reserved.
-
-Adding .\Windows10.0-KB5058392-x64.cab to Extraction Queue
-Adding .\WSUSSCAN.cab to Extraction Queue
-Adding .\SSU-17763.7313-x64.cab to Extraction Queue
-
-Expanding Files ....
-Progress: 0 out of 3 files
-Expanding Files Complete ...
-3 files total.
-```
-Install SSU first then install the main update
-```
-DISM /Online /Add-Package /PackagePath:"C:\temp\SSU-17763.7313-x64.cab" /quiet /norestart
-DISM /Online /Add-Package /PackagePath:"C:\temp\Windows10.0-KB5058392-x64.cab" /quiet /norestart
-```
-### Run as job
-```
-Start-Job -Name "ErrorJob" -ScriptBlock { DISM /Online /Add-Package /PackagePath:"C:\temp\SSU-17763.7313-x64.cab" /quiet /norestart }
-Start-Job -ScriptBlock { DISM /Online /Add-Package /PackagePath:"C:\temp\SSU-17763.7313-x64.cab" /quiet /norestart }
-```
-### how to uninstall KB using dism
-Based on 17763.7314 I assume it should be - https://support.microsoft.com/en-au/topic/may-13-2025-kb5058392-os-build-17763-7314-e72d5090-15f1-4562-a7c0-39c1155fa01c
-```
-Get-WindowsPackage -Online | Where-Object {$_.PackageName -like "*17763.7314*"}
-PackageName  : Package_for_RollupFix~31bf3856ad364e35~amd64~~17763.7314.1.18
-PackageState : Installed
-ReleaseType  : SecurityUpdate
-InstallTime  : 5/15/2025 7:34:00 PM```
-```
-```
-DISM /Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35~amd64~~17763.7314.1.18 /quiet /norestart
-```
-```
-wget -O custom_name.zip http://example.com/file.zip
-```
-### How to pull names without title
-```
-Get-WindowsPackage -Online | Where-Object {$_.packagename -like "*17763.7434*"} | Select-Object -ExpandProperty packagename
-```
-### How to pull packagename where packagename contains certain KB metadata (17763.7434)
-```
-DISM /Online /Get-PackageInfo /PackageName:$(Get-WindowsPackage -Online | Where-Object {$_.packagename -like "*17763.7434*"} | Select-Object -Expand
-Property packagename)
-```
-### How to pull more information especailly for cumulative updates for .net
-```
-DISM /Online /Get-PackageInfo /PackageName:Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
-
-Deployment Image Servicing and Management tool
-Version: 10.0.17763.5830
-
-Image Version: 10.0.17763.7314
-
-Package information:
-
-Package Identity : Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
-Applicable : Yes
-Copyright : Microsoft Corporation
-Company : Microsoft Corporation
-Creation Time :
-Description : Fix for KB5055175
-Install Client : WindowsUpdateAgent
-Install Package Name : Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1.mum
-Install Time : 5/15/2025 3:15 AM
-Last Update Time :
-Name : default
-Product Name : Package_for_DotNetRollup
-Product Version :
-Release Type : Update
-Restart Required : Possible
-Support Information : http://support.microsoft.com/?kbid=5055175
-State : Installed
-Completely offline capable : No
-Self servicing package : No
-Capability Identity :
-
-Custom Properties:
-
-(No custom properties found)
-
-Features listing for package : Package_for_DotNetRollup~31bf3856ad364e35~amd64~~10.0.4785.1
-
-(No features found for this package)
-
-The operation completed successfully
-```
-### Monitor Windows Update Installation Logs
-```
-Get-WindowsUpdateLog
-```
-### Show what is installed
-```
-Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5
-```
-```
-Get-HotFix | Sort-Object -Descending -Property InstalledOn
-```
-```
-wmic qfe list
-```
-### Check for Pending or Missing Updates
-```
-(New-Object -ComObject Microsoft.Update.Session).CreateupdateSearcher().Search("IsHidden=0 and IsInstalled=0").Updates | Select-Object Title
-```
-### Force update
-```
-wuauclt.exe /resetauthorization /detectnow
-```
-resource - https://inventivehq.com/windows-update-commands-powershell-usoclient-wuauclt/
-
-To install an `.msu` update package using **wusa** (Windows Update Standalone Installer), follow these steps:
-
-1. **Run the wusa Command**  
-   Use the following syntax:
-   ```
-   wusa .msu [options]
-   ```
-   For example, to install an update silently and prevent automatic restart:
-   ```
-   wusa C:\Updates\Windows10-KB123456-x64.msu /quiet /norestart
-   ```
-   - Replace `C:\Updates\Windows10-KB123456-x64.msu` with the full path and filename of your `.msu` file.
-   - `/quiet` runs the installer without user interaction.
-   - `/norestart` prevents the system from restarting automatically after installation[2][3][5].
-
-2. **Other Useful Options**
-   - `/forcerestart` - Forces an immediate restart after installation.
-   - `/warnrestart:` - Warns before restarting.
-   - `/logfile:` - Saves installation logs to a specified file[5].
-
-**Example Commands:**
-- Install update interactively:
-  ```
-  wusa C:\Updates\Windows10-KB123456-x64.msu
-  ```
-- Install silently, no restart:
-  ```
-  wusa C:\Updates\Windows10-KB123456-x64.msu /quiet /norestart
-  ```
-- Install and log output:
-  ```
-  wusa C:\Updates\Windows10-KB123456-x64.msu /quiet /logfile:C:\update_log.txt
-  ```
-  To discover what is available for `Get-WinEvent`, you can list all event logs and providers on your system using its built-in parameters. Here’s how:
-
----
-
-## List All Event Logs
-
-To see all the logs you can query with `Get-WinEvent`, use:
+**Step 1: Install IIS**
 
 ```powershell
-Get-WinEvent -ListLog *
+Install-WindowsFeature -Name Web-Server -IncludeManagementTools
 ```
-- This command lists every event log available on your system, including classic logs (like `System`, `Application`) and newer, application-specific or operational logs[1][3][5].
 
----
+This installs IIS with the management console. IIS starts automatically after install.
 
-## List All Event Providers
-
-To see all providers (sources of events), use:
+**Step 2: Verify it's running**
 
 ```powershell
-Get-WinEvent -ListProvider *
+Get-Service W3SVC
 ```
-- This lists all event providers, which are sources that write events to the logs. Providers often correspond to Windows components, drivers, or applications[1][3][5].
 
----
-https://www.pdq.com/powershell/get-winevent/
-## List Events for a Specific Provider
+Should show `Running`. Then browse to `http://localhost` — you'll see the default IIS welcome page.
 
-To see what events a provider can generate (including Event IDs and descriptions):
+**Step 3: Deploy your site**
+
+The default web root is:
+```
+C:\inetpub\wwwroot\
+```
+
+Drop your HTML/files there, or create a new site:
 
 ```powershell
-(Get-WinEvent -ListProvider "Microsoft-Windows-GroupPolicy").Events | Format-Table ID, Description -AutoSize
+# Create a folder for your site
+New-Item -Path "C:\inetpub\mysite" -ItemType Directory
+
+# Add a test page
+Set-Content -Path "C:\inetpub\mysite\index.html" -Value "<h1>Hello from IIS</h1>"
+
+# Create a new IIS site
+Import-Module WebAdministration
+New-IISSite -Name "MySite" -PhysicalPath "C:\inetpub\mysite" -BindingInformation "*:8080:"
 ```
-- Replace `"Microsoft-Windows-GroupPolicy"` with any provider name you found from the previous step[3].
 
----
+This creates a site listening on port 8080.
 
-## Summary Table
-
-| Command                                 | Purpose                                 |
-|------------------------------------------|-----------------------------------------|
-| `Get-WinEvent -ListLog *`                | List all available event logs           |
-| `Get-WinEvent -ListProvider *`           | List all event providers                |
-| `(Get-WinEvent -ListProvider "Name").Events` | List event IDs/descriptions for provider |
-
----
-When you run `wusa /uninstall /kb:5055519 /quiet` via SSM (or any remote PowerShell), **errors and status will not display in your console due to the `/quiet` switch**. To determine if the uninstallation failed or succeeded, you must check the appropriate Windows event logs.
-
----
-
-## 1. **Where to Check for WUSA Errors**
-
-### **A. Setup Event Log**
-- **Log Location:** `Event Viewer > Windows Logs > Setup`
-- **Relevant Event IDs:**  
-  - **Event ID 8:** Indicates a failure when using WUSA with `/quiet` or `/norestart` (especially on newer Windows versions; see[6][10]).
-  - **Other IDs:** Success or additional error details may also be logged here.
-
-### **B. Application Event Log**
-- **Log Location:** `Event Viewer > Windows Logs > Application`
-- **Source:** `MsiInstaller` (for MSI-based updates, less common for Windows Updates)
-
----
-
-## 2. **What to Look For**
-
-- **Event ID 8 in Setup Log:**  
-  This specifically signals that a WUSA uninstall attempt failed when run in quiet mode (no user interaction)[6][10].
-- **Error Messages:**  
-  The event details will include the KB number, the command line used, and an error code (e.g., `0x800f0905`, `2147549183`, etc.)[4][8].
-- **Success:**  
-  If the uninstall is successful, there may be a corresponding success event, but failures are more reliably logged.
-
----
-
-## 3. **How to Check via PowerShell**
-
-You can query the Setup log for recent WUSA uninstall errors:
+**Step 4: Open the firewall**
 
 ```powershell
-Get-WinEvent -LogName Setup | Where-Object {
-    $_.Id -eq 8 -and $_.Message -match "5055519"
-} | Select-Object TimeCreated, Message | Sort-Object TimeCreated -Descending
+New-NetFirewallRule -DisplayName "Allow HTTP 80" -Direction Inbound -Port 80 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "Allow HTTP 8080" -Direction Inbound -Port 8080 -Protocol TCP -Action Allow
 ```
-- This will show recent uninstall failures for KB5055519.
-
----
-https://medium.com/@AhmedZia01/analyzing-windows-event-logs-with-powershell-get-winevent-b08163e78221
-## 4. **Key Notes**
-
-- **WUSA /quiet uninstall failures are common on newer Windows versions** (Windows 10/11, Server 2016/2019) and are logged as Event ID 8 in the Setup log[6][10].
-- **You will not see errors in your SSM/PowerShell output** due to the `/quiet` switch.
-- **Always check the Setup event log** after running silent uninstall commands with WUSA.
 
 ---
 
-### 5. **How to schedule DISM**
-```
-# Create the scheduled task
-$action = New-ScheduledTaskAction -Execute 'DISM.exe' -Argument '/Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35~amd64~~14393.8519.1.28'
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)
-$principal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+**Optional: Install ASP.NET support** (if hosting .NET apps like your TodoApp)
 
-Register-ScheduledTask -TaskName "Remove_KB5066836" -Action $action -Trigger $trigger -Principal $principal
-# After creating the task
-Start-ScheduledTask -TaskName "Remove_KB5066836"
-
-# To monitor status
-Get-ScheduledTask -TaskName "Remove_KB5066836" | Get-ScheduledTaskInfo
-```
-#### **Start Immediately with Process**
-```
-# Run directly with elevated rights
-Start-Process "DISM.exe" -ArgumentList "/Online /Remove-Package /PackageName:Package_for_RollupFix~31bf3856ad364e35~amd64~~14393.8519.1.28" -Wait -NoNewWindow
+```powershell
+Install-WindowsFeature -Name Web-Asp-Net45, Web-Net-Ext45, NET-Framework-45-ASPNET
 ```
 
-### Troubleshooting Windows Update logs
-https://learn.microsoft.com/en-us/windows/deployment/update/windows-update-logs
-
-### Troubleshooting packages
-https://techcommunity.microsoft.com/blog/askperf/msi-troubleshooting-package-installation/373979
-
-### **Summary Table**
-
-| Event Log                | Event ID | What it Means                        | Where to Find      |
-|--------------------------|----------|--------------------------------------|--------------------|
-| Setup                    | 8        | WUSA uninstall failed (esp. /quiet)  | Windows Logs\Setup |
-| Setup/Application        | varies   | Success or other error details       | Windows Logs\Setup or Application |
+For .NET Core / .NET 6+ apps, install the hosting bundle instead:
+```powershell
+# Download and install .NET Hosting Bundle
+Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile "$env:TEMP\dotnet-install.ps1"
+```
+Or download the ASP.NET Core Hosting Bundle from https://dotnet.microsoft.com/download/dotnet
 
 ---
 
-**References:**  
-- [Microsoft: WUSA event log location][1]  
-- [StackOverflow: WUSA /quiet uninstall fails, Event ID 8][6][10]  
-- [NinjaOne: Reading Windows Update logs][7]
+**Useful IIS commands:**
 
----
+```powershell
+# List all sites
+Get-IISSite
 
-**In summary:**  
-After running `wusa /uninstall /kb:5055519 /quiet`, check the **Setup event log** for **Event ID 8** and related entries to determine if the uninstall succeeded or failed. Errors and details will be logged there, as silent mode suppresses console output.
+# Stop/Start a site
+Stop-IISSite -Name "MySite"
+Start-IISSite -Name "MySite"
 
-### how to automate patching in windows and rhel with internet
+# Restart IIS entirely
+iisreset
+```
 
-Resource - https://aws.amazon.com/blogs/mt/patching-your-windows-ec2-instances-using-aws-systems-manager-patch-manager/
+Since your ALB health check hits `/` on port 80, the default IIS site will respond with a 200 out of the box — so your ALB target group health checks will pass immediately after IIS is installed.
 
-AWS Systems Manager (SSM) Patch Manager for Windows and RHEL critical patching, a weekly Maintenance Window, and email notifications via SNS and CloudWatch Events/EventBridge.
+### Check AD Domain Join Status
+```
+$computerSystem = Get-WmiObject -Class Win32_ComputerSystem
 
-### Terraform Configuration Overview
-1. **SNS Topic and Subscription**: For email notifications.
-2. **CloudWatch Event Rule and Target**: To detect SSM patch failures and send details to SNS.
-3. **SSM Patch Baselines**: For Windows and RHEL critical updates.
-4. **SSM Maintenance Window**: For weekly patching.
-5. **SSM Maintenance Window Task**: To execute the patching.
-6. **IAM Role**: For EC2 instances to interact with SSM (assumed pre-existing for brevity).
+Write-Host "Computer Name : $($computerSystem.Name)"
+Write-Host "Domain        : $($computerSystem.Domain)"
+Write-Host "Part of Domain: $($computerSystem.PartOfDomain)"
 
-### Terraform Code
-Save this in a file like `main.tf`. Adjust variables (e.g., email address, timezone) as needed.
+if ($computerSystem.PartOfDomain) {
+    Write-Host "`nThis machine IS joined to Active Directory domain: $($computerSystem.Domain)" -ForegroundColor Green
 
-```hcl
-provider "aws" {
-  region = "us-east-1" # Adjust to your region
-}
-
-# Variables
-variable "email_address" {
-  description = "Email address for patch failure notifications"
-  type        = string
-  default     = "your.email@example.com" # Replace with your email
-}
-
-# 1. SNS Topic for Email Notifications
-resource "aws_sns_topic" "patch_failure_notifications" {
-  name = "PatchFailureNotifications"
-}
-
-resource "aws_sns_topic_subscription" "email_subscription" {
-  topic_arn = aws_sns_topic.patch_failure_notifications.arn
-  protocol  = "email"
-  endpoint  = var.email_address
-}
-
-# 2. CloudWatch Event Rule for SSM Patch Failures
-resource "aws_cloudwatch_event_rule" "ssm_patch_failure_rule" {
-  name        = "SSM-PatchFailure-Rule"
-  description = "Triggers on SSM patch command failures"
-  event_pattern = jsonencode({
-    source      = ["aws.ssm"]
-    detail-type = ["EC2 Command Invocation Status Change"]
-    detail = {
-      status = ["Failed"]
+    # Additional AD details
+    try {
+        $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()
+        Write-Host "Domain Controller: $($domain.PdcRoleOwner.Name)"
+        Write-Host "Forest           : $($domain.Forest.Name)"
+    } catch {
+        Write-Host "Could not retrieve additional domain details: $_" -ForegroundColor Yellow
     }
-  })
-}
-
-resource "aws_cloudwatch_event_target" "sns_target" {
-  rule      = aws_cloudwatch_event_rule.ssm_patch_failure_rule.name
-  target_id = "SendToSNS"
-  arn       = aws_sns_topic.patch_failure_notifications.arn
-
-  input_transformer {
-    input_paths = {
-      "instance-id"   = "$.detail.instance-id"
-      "command-id"    = "$.detail.command-id"
-      "status"        = "$.detail.status"
-      "status-details" = "$.detail.status-details"
-    }
-    input_template = <<-EOF
-      "Patch operation failed on instance <instance-id>. Command ID: <command-id>. Status: <status>. Details: <status-details>. Check CloudWatch Logs at /ssm/patch-logs for more details."
-    EOF
-  }
-}
-
-# Grant CloudWatch Events permission to publish to SNS
-resource "aws_sns_topic_policy" "sns_policy" {
-  arn    = aws_sns_topic.patch_failure_notifications.arn
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect    = "Allow"
-        Principal = { Service = "events.amazonaws.com" }
-        Action    = "sns:Publish"
-        Resource  = aws_sns_topic.patch_failure_notifications.arn
-      }
-    ]
-  })
-}
-
-# 3. SSM Patch Baselines
-# Windows Critical Updates
-resource "aws_ssm_patch_baseline" "windows_critical" {
-  name             = "Critical-Windows-PatchBaseline"
-  operating_system = "WINDOWS"
-  approved_patches = []
-  approval_rule {
-    patch_filter {
-      key    = "CLASSIFICATION"
-      values = ["CriticalUpdates"]
-    }
-    patch_filter {
-      key    = "MSRC_SEVERITY"
-      values = ["Critical"]
-    }
-    approve_after_days = 1 # Approve patches 1 day after release (post-Patch Tuesday)
-  }
-}
-
-# RHEL Critical Updates
-resource "aws_ssm_patch_baseline" "rhel_critical" {
-  name             = "Critical-RHEL-PatchBaseline"
-  operating_system = "REDHAT_ENTERPRISE_LINUX"
-  approved_patches = []
-  approval_rule {
-    patch_filter {
-      key    = "SEVERITY"
-      values = ["Critical"]
-    }
-    patch_filter {
-      key    = "CLASSIFICATION"
-      values = ["Security"]
-    }
-    approve_after_days = 1
-  }
-}
-
-# 4. SSM Maintenance Window (Weekly, Wednesday 2:00 AM UTC)
-resource "aws_ssm_maintenance_window" "weekly_patching" {
-  name              = "Weekly-Critical-Patching"
-  schedule          = "cron(0 0 2 ? * WED *)" # Every Wednesday at 2:00 AM UTC
-  duration          = 3                        # 3-hour window
-  cutoff            = 1                        # Stop 1 hour before end
-  allow_unassociated_targets = false
-}
-
-# 5. SSM Maintenance Window Task (Patch Execution)
-resource "aws_ssm_maintenance_window_target" "patching_target" {
-  window_id        = aws_ssm_maintenance_window.weekly_patching.id
-  resource_type    = "INSTANCE"
-  targets {
-    key    = "tag:PatchGroup" # Assumes instances tagged with PatchGroup
-    values = ["Windows-Critical", "RHEL-Critical"]
-  }
-}
-
-resource "aws_ssm_maintenance_window_task" "patching_task" {
-  window_id        = aws_ssm_maintenance_window.weekly_patching.id
-  task_type        = "RUN_COMMAND"
-  task_arn         = "AWS-RunPatchBaseline"
-  priority         = 10
-  max_concurrency  = "10" # Adjust based on your fleet size
-  max_errors       = "1"
-  targets {
-    key    = "WindowTargetIds"
-    values = [aws_ssm_maintenance_window_target.patching_target.id]
-  }
-  task_invocation_parameters {
-    run_command_parameters {
-      document_version = "$LATEST"
-      parameter {
-        name   = "Operation"
-        values = ["Install"]
-      }
-      output_s3_bucket_name = "your-s3-bucket" # Optional: Replace with your bucket for logs
-      output_s3_key_prefix  = "ssm-logs/"
-    }
-  }
-}
-
-# Output SNS Topic ARN for reference
-output "sns_topic_arn" {
-  value = aws_sns_topic.patch_failure_notifications.arn
+} else {
+    Write-Host "`nThis machine is NOT joined to Active Directory. It is in a workgroup: $($computerSystem.Domain)" -ForegroundColor Red
 }
 ```
 
-### Prerequisites and Notes
-1. **IAM Role for EC2 Instances**:
-   - This code assumes your EC2 instances already have an IAM role with the `AmazonSSMManagedInstanceCore` policy. If not, add this Terraform block:
-     ```hcl
-     resource "aws_iam_role" "ssm_role" {
-       name = "SSMManagedInstanceRole"
-       assume_role_policy = jsonencode({
-         Version = "2012-10-17"
-         Statement = [{
-           Action = "sts:AssumeRole"
-           Effect = "Allow"
-           Principal = { Service = "ec2.amazonaws.com" }
-         }]
-       })
-     }
+# AWS Patch Manager + ASG + Managed AD (Windows)
 
-     resource "aws_iam_role_policy_attachment" "ssm_policy" {
-       role       = aws_iam_role.ssm_role.name
-       policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-     }
+## Architecture
 
-     resource "aws_iam_instance_profile" "ssm_profile" {
-       name = "SSMManagedInstanceProfile"
-       role = aws_iam_role.ssm_role.name
-     }
-     ```
-   - Attach this profile to your EC2 instances.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  VPC (172.16.0.0/16)                                            │
+│                                                                 │
+│  ┌─────────────────────┐    ┌─────────────────────┐            │
+│  │ Public Subnet AZ-a  │    │ Public Subnet AZ-b  │            │
+│  │   NAT Gateway       │    │                     │            │
+│  └─────────────────────┘    └─────────────────────┘            │
+│                                                                 │
+│  ┌─────────────────────┐    ┌─────────────────────┐            │
+│  │ Private Subnet AZ-a │    │ Private Subnet AZ-b │            │
+│  │                     │    │                     │            │
+│  │  ┌───────────────┐  │    │  ┌───────────────┐  │            │
+│  │  │ Managed AD DC │  │    │  │ Managed AD DC │  │            │
+│  │  └───────────────┘  │    │  └───────────────┘  │            │
+│  │                     │    │                     │            │
+│  │  ┌───────────────┐  │    │  ┌───────────────┐  │            │
+│  │  │ Win ASG Inst. │  │    │  │ Win ASG Inst. │  │            │
+│  │  │ (AD-Joined)   │  │    │  │ (AD-Joined)   │  │            │
+│  │  └───────────────┘  │    │  └───────────────┘  │            │
+│  └─────────────────────┘    └─────────────────────┘            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 
-2. **Tagging Instances**:
-   - The Maintenance Window targets instances tagged with `PatchGroup:Windows-Critical` or `PatchGroup:RHEL-Critical`. Tag your instances accordingly, or modify the `targets` block to use instance IDs or another method.
+SSM Patch Manager ──► Maintenance Window ──► AWS-RunPatchBaseline
+                          (Sunday 2AM UTC)
+                               │
+                               ▼
+                    Targets: tag:PatchGroup = "Windows-Production"
+```
 
-3. **S3 Bucket for Logs** (Optional):
-   - If you want SSM command output logged to S3, create an S3 bucket and update the `output_s3_bucket_name` in the `aws_ssm_maintenance_window_task` resource.
+## How It Works
 
-4. **Email Confirmation**:
-   - After applying this Terraform config, AWS SNS will send a confirmation email to the `email_address`. Accept it to activate the subscription.
+1. **AWS Managed Microsoft AD** is deployed across 2 AZs in private subnets
+2. **DHCP Options** point VPC DNS to the AD domain controllers
+3. **Launch Template** tags instances with `ADJoin=true`
+4. **SSM Association** watches for `ADJoin=true` tag and runs `aws:domainJoin`
+5. **ASG** launches Windows instances in private subnets → they auto-join AD
+6. **Patch Manager** runs `AWS-RunPatchBaseline` every Sunday at 2 AM via maintenance window
 
-5. **Apply the Configuration**:
-   - Run:
-     ```bash
-     terraform init
-     terraform plan
-     terraform apply
-     ```
-   - Review the plan and confirm with `yes`.
+## Prerequisites
 
-### How It Works with Terraform
-- **SNS and CloudWatch**: Provisions the notification system to email you when an SSM patch command fails, including instance ID, command ID, and failure details.
-- **Patch Baselines**: Defines critical-only patch policies for Windows (aligned with Patch Tuesday) and RHEL.
-- **Maintenance Window**: Automates weekly patching every Wednesday at 2:00 AM UTC, targeting tagged instances.
-- **Idempotency**: Terraform ensures resources are created or updated consistently, avoiding manual drift.
+- Terraform >= 1.0
+- AWS CLI configured with appropriate permissions
+- Permissions needed:
+  - `ds:*` (Directory Service)
+  - `ec2:*` (VPC, ASG, Launch Templates)
+  - `ssm:*` (Systems Manager)
+  - `iam:*` (Roles, Profiles)
 
-### Customization
-- **Region/Timezone**: Adjust `provider "aws"` region and `schedule` in the Maintenance Window to match your timezone.
-- **Patch Groups**: Modify the `targets` in `aws_ssm_maintenance_window_target` to fit your instance tagging strategy.
-- **More Granular Failure Details**: Enhance the CloudWatch Event `input_template` or integrate with CloudWatch Logs as needed.
+## Usage
 
-This Terraform setup fully automates your patching and notification requirements. Let me know if you’d like to tweak any part further!
+```bash
+# Set the AD admin password (never commit this)
+export TF_VAR_ad_admin_password='YourStr0ngP@ssword!'
 
-### Outstanding
-https://chat.deepseek.com/a/chat/s/6dc8da1f-9772-495a-b3f9-2b792086279d
+# Initialize and apply
+terraform init
+terraform plan
+terraform apply
+```
 
-### Resource
-https://powershellcommands.com/powershell-running-in-background
+## Important Notes
+
+- **Managed AD takes ~30 minutes to provision**
+- AD admin password must be set via environment variable or a secrets file
+- Instances are in private subnets — use SSM Session Manager for access (no RDP over internet)
+- NAT Gateway provides outbound internet for patching
+- The patch baseline auto-approves Critical/Security updates after 7 days
+
+## Cost Considerations
+
+| Resource | Approximate Cost |
+|----------|-----------------|
+| Managed AD (Standard) | ~$72/month |
+| NAT Gateway | ~$32/month + data |
+| t3.medium (per instance) | ~$30/month |
+| SSM Patch Manager | Free |
+
+## Patching Strategy
+
+This uses **mutable in-place patching** — instances are patched while running.
+For immutable patching (golden AMI refresh), you would:
+1. Patch a source AMI using SSM Automation
+2. Update the Launch Template AMI ID
+3. Trigger an ASG instance refresh
