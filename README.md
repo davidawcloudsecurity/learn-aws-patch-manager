@@ -81,7 +81,7 @@ iisreset
 
 Since your ALB health check hits `/` on port 80, the default IIS site will respond with a 200 out of the box — so your ALB target group health checks will pass immediately after IIS is installed.
 
-# Check AD Domain Join Status
+### Check AD Domain Join Status
 ```
 $computerSystem = Get-WmiObject -Class Win32_ComputerSystem
 
