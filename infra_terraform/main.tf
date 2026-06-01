@@ -345,7 +345,7 @@ resource "aws_launch_template" "windows" {
     http_put_response_hop_limit = 2
   }
 
-  user_data = base64encode(<<-USERDATA
+user_data = base64encode(<<-USERDATA
 <powershell>
 $ErrorActionPreference = 'Stop'
 $logFile = "C:\bootstrap.log"
