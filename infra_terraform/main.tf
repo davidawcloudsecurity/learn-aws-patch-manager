@@ -347,32 +347,60 @@ resource "aws_launch_template" "windows" {
 
   user_data = base64encode(<<-USERDATA
 <powershell>
-# ---- SSM Agent ----
-Start-Service AmazonSSMAgent
-Set-Service AmazonSSMAgent -StartupType Automatic
+$ErrorActionPreference = 'Stop'
+$logFile = "C:\bootstrap.log"
 
-# ---- Install IIS ----
-Install-WindowsFeature -Name Web-Server -IncludeManagementTools
-Start-Service W3SVC
-Set-Service W3SVC -StartupType Automatic
+function Log($msg) {
+    $line = "$(([DateTime]::UtcNow).ToString('yyyy-MM-dd HH:mm:ss UTC')): $msg"
+    Add-Content -Path $logFile -Value $line
+    Write-Output $line
+}
 
-# ---- Deploy default health-check page ----
-$html = @"
+try {
+    # ---- SSM Agent ----
+    Log "Starting SSM Agent..."
+    Start-Service AmazonSSMAgent
+    Set-Service AmazonSSMAgent -StartupType Automatic
+    Log "SSM Agent started."
+
+    # ---- Install IIS ----
+    Log "Installing IIS..."
+    $result = Install-WindowsFeature -Name Web-Server -IncludeManagementTools -Confirm:$false
+    if (-not $result.Success) {
+        throw "IIS installation failed. ExitCode: $($result.ExitCode)"
+    }
+    Log "IIS installed successfully. ExitCode: $($result.ExitCode)"
+
+    # ---- Start IIS ----
+    Start-Service W3SVC
+    Set-Service W3SVC -StartupType Automatic
+    Log "W3SVC started."
+
+    # ---- Deploy health-check page ----
+    $timestamp = ([DateTime]::UtcNow).ToString('yyyy-MM-dd HH:mm:ss UTC')
+    $html = @"
 <html>
 <head><title>Health Check</title></head>
 <body>
 <h1>Healthy</h1>
 <p>Instance: $($env:COMPUTERNAME)</p>
-<p>Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC' -AsUTC)</p>
+<p>Time: $timestamp</p>
 </body>
 </html>
 "@
-Set-Content -Path "C:\inetpub\wwwroot\index.html" -Value $html
+    Set-Content -Path "C:\inetpub\wwwroot\index.html" -Value $html
+    Log "Health check page deployed."
 
-# ---- Firewall rule for HTTP ----
-New-NetFirewallRule -DisplayName "Allow HTTP Inbound" -Direction Inbound -Port 80 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
+    # ---- Firewall rule for HTTP ----
+    New-NetFirewallRule -DisplayName "Allow HTTP Inbound" -Direction Inbound -Port 80 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
+    Log "Firewall rule created."
 
-Write-Output "Bootstrap complete. IIS installed and running. AD join handled by SSM Association."
+    Log "Bootstrap complete."
+
+} catch {
+    Log "ERROR: $_"
+    exit 1
+}
 </powershell>
 USERDATA
   )
