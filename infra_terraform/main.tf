@@ -346,64 +346,11 @@ resource "aws_launch_template" "windows" {
     http_put_response_hop_limit = 2
   }
 
-  user_data = base64encode(<<-USERDATA
+  user_data = base64encode(<<-EOF
 <powershell>
-$ErrorActionPreference = 'Stop'
-$logFile = "C:\bootstrap.log"
-
-function Log($msg) {
-    $line = "$(([DateTime]::UtcNow).ToString('yyyy-MM-dd HH:mm:ss UTC')): $msg"
-    Add-Content -Path $logFile -Value $line
-    Write-Output $line
-}
-
-try {
-    # ---- SSM Agent ----
-    Log "Starting SSM Agent..."
-    Start-Service AmazonSSMAgent
-    Set-Service AmazonSSMAgent -StartupType Automatic
-    Log "SSM Agent started."
-
-    # ---- Install IIS ----
-    Log "Installing IIS..."
-    $result = Install-WindowsFeature -Name Web-Server -IncludeManagementTools -Confirm:$false
-    if (-not $result.Success) {
-        throw "IIS installation failed. ExitCode: $($result.ExitCode)"
-    }
-    Log "IIS installed successfully. ExitCode: $($result.ExitCode)"
-
-    # ---- Start IIS ----
-    Start-Service W3SVC
-    Set-Service W3SVC -StartupType Automatic
-    Log "W3SVC started."
-
-    # ---- Deploy health-check page ----
-    $timestamp = ([DateTime]::UtcNow).ToString('yyyy-MM-dd HH:mm:ss UTC')
-    $html = @"
-<html>
-<head><title>Health Check</title></head>
-<body>
-<h1>Healthy</h1>
-<p>Instance: $($env:COMPUTERNAME)</p>
-<p>Time: $timestamp</p>
-</body>
-</html>
-"@
-    Set-Content -Path "C:\inetpub\wwwroot\index.html" -Value $html
-    Log "Health check page deployed."
-
-    # ---- Firewall rule for HTTP ----
-    New-NetFirewallRule -DisplayName "Allow HTTP Inbound" -Direction Inbound -Port 80 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
-    Log "Firewall rule created."
-
-    Log "Bootstrap complete."
-
-} catch {
-    Log "ERROR: $_"
-    exit 1
-}
+Install-WindowsFeature -Name Web-Server -IncludeManagementTools
 </powershell>
-USERDATA
+EOF
   )
 
   lifecycle { create_before_destroy = true }
@@ -416,7 +363,7 @@ USERDATA
 # ============================================================
 
 resource "aws_autoscaling_group" "windows" {
-  name                      = "${var.project_tag}-windows-asg"
+  name                      = "${var.project_tag}-windows-asg-2"
   desired_capacity          = var.asg_desired_capacity
   min_size                  = var.asg_min_size
   max_size                  = var.asg_max_size
@@ -653,49 +600,6 @@ resource "aws_instance" "linux_ubuntu" {
     http_tokens                 = "required"
     http_put_response_hop_limit = 2
   }
-
-  user_data = base64encode(<<-USERDATA
-#!/bin/bash
-set -euo pipefail
-LOG="/var/log/bootstrap.log"
-
-log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC'): $1" | tee -a "$LOG"; }
-
-log "Starting bootstrap..."
-
-# Update package index and install SSM agent
-log "Installing/updating SSM Agent..."
-snap install amazon-ssm-agent --classic || true
-systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
-systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
-log "SSM Agent running."
-
-# Install nginx as a simple web server for health checks
-log "Installing nginx..."
-apt-get update -y
-apt-get install -y nginx
-systemctl enable nginx
-systemctl start nginx
-
-# Deploy health-check page
-TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
-HOSTNAME=$(hostname)
-cat > /var/www/html/index.html <<HTML
-<html>
-<head><title>Health Check</title></head>
-<body>
-<h1>Healthy</h1>
-<p>Instance: $HOSTNAME</p>
-<p>OS: Ubuntu 22.04</p>
-<p>Time: $TIMESTAMP</p>
-</body>
-</html>
-HTML
-log "Health check page deployed."
-
-log "Bootstrap complete."
-USERDATA
-  )
 
   tags = {
     Name          = "${var.project_tag}-linux-ubuntu"
