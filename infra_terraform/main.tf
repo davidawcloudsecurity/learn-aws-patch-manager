@@ -351,7 +351,6 @@ user_data = <<EOF
 Install-WindowsFeature -Name Web-Server -IncludeManagementTools
 </powershell>
 EOF
-)
 
   lifecycle { create_before_destroy = true }
 
