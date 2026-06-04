@@ -111,6 +111,22 @@ variable "asg_max_size" {
 }
 
 # ============================================================
+# Linux Ubuntu Standalone
+# ============================================================
+
+variable "linux_instance_type" {
+  description = "Instance type for the Linux Ubuntu standalone instance"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "custom_linux_ami_id" {
+  description = "Custom AMI ID for the Linux instance. Leave empty to use latest Ubuntu 22.04 from Canonical."
+  type        = string
+  default     = ""
+}
+
+# ============================================================
 # SSM Patch Manager
 # ============================================================
 
