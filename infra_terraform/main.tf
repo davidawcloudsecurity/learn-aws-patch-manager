@@ -346,11 +346,12 @@ resource "aws_launch_template" "windows" {
     http_put_response_hop_limit = 2
   }
 
-user_data = <<EOF
+  user_data = base64encode(<<-EOF
 <powershell>
 Install-WindowsFeature -Name Web-Server -IncludeManagementTools
 </powershell>
 EOF
+  )
 
   lifecycle { create_before_destroy = true }
 
