@@ -346,64 +346,11 @@ resource "aws_launch_template" "windows" {
     http_put_response_hop_limit = 2
   }
 
-user_data = base64encode(<<-USERDATA
+user_data = <<EOF
 <powershell>
-$ErrorActionPreference = 'Stop'
-$logFile = "C:\bootstrap.log"
-
-function Log($msg) {
-    $line = "$(([DateTime]::UtcNow).ToString('yyyy-MM-dd HH:mm:ss UTC')): $msg"
-    Add-Content -Path $logFile -Value $line
-    Write-Output $line
-}
-
-try {
-    # ---- SSM Agent ----
-    Log "Starting SSM Agent..."
-    Start-Service AmazonSSMAgent
-    Set-Service AmazonSSMAgent -StartupType Automatic
-    Log "SSM Agent started."
-
-    # ---- Install IIS ----
-    Log "Installing IIS..."
-    $result = Install-WindowsFeature -Name Web-Server -IncludeManagementTools -Confirm:$false
-    if (-not $result.Success) {
-        throw "IIS installation failed. ExitCode: $($result.ExitCode)"
-    }
-    Log "IIS installed successfully. ExitCode: $($result.ExitCode)"
-
-    # ---- Start IIS ----
-    Start-Service W3SVC
-    Set-Service W3SVC -StartupType Automatic
-    Log "W3SVC started."
-
-    # ---- Deploy health-check page ----
-    $timestamp = ([DateTime]::UtcNow).ToString('yyyy-MM-dd HH:mm:ss UTC')
-    $html = @"
-<html>
-<head><title>Health Check</title></head>
-<body>
-<h1>Healthy</h1>
-<p>Instance: $($env:COMPUTERNAME)</p>
-<p>Time: $timestamp</p>
-</body>
-</html>
-"@
-    Set-Content -Path "C:\inetpub\wwwroot\index.html" -Value $html
-    Log "Health check page deployed."
-
-    # ---- Firewall rule for HTTP ----
-    New-NetFirewallRule -DisplayName "Allow HTTP Inbound" -Direction Inbound -Port 80 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
-    Log "Firewall rule created."
-
-    Log "Bootstrap complete."
-
-} catch {
-    Log "ERROR: $_"
-    exit 1
-}
+Install-WindowsFeature -Name Web-Server -IncludeManagementTools
 </powershell>
-USERDATA
+EOF
 )
 
   lifecycle { create_before_destroy = true }
