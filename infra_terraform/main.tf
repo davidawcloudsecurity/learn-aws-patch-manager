@@ -15,8 +15,9 @@ resource "aws_vpc" "main" {
 }
 
 locals {
-  vpc_id = var.create_vpc ? aws_vpc.main[0].id : data.aws_vpc.existing[0].id
-  ami_id = var.custom_ami_id != "" ? var.custom_ami_id : data.aws_ami.windows_2019[0].id
+  vpc_id       = var.create_vpc ? aws_vpc.main[0].id : data.aws_vpc.existing[0].id
+  ami_id       = var.custom_ami_id != "" ? var.custom_ami_id : data.aws_ami.windows_2019[0].id
+  linux_ami_id = var.custom_linux_ami_id != "" ? var.custom_linux_ami_id : data.aws_ami.ubuntu_2204.id
 }
 
 data "aws_vpc" "existing" {
@@ -552,6 +553,242 @@ resource "aws_autoscaling_attachment" "alb" {
 }
 
 # ============================================================
+# Ubuntu 22.04 AMI (latest)
+# ============================================================
+
+data "aws_ami" "ubuntu_2204" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# ============================================================
+# Security Group — Linux Ubuntu Standalone
+# ============================================================
+
+resource "aws_security_group" "linux_ubuntu" {
+  name        = "${var.project_tag}-linux-ubuntu-sg"
+  description = "Linux Ubuntu standalone instance: SSM patching"
+  vpc_id      = local.vpc_id
+
+  # SSH from within VPC only
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.main_cidr_block]
+    description = "SSH from VPC"
+  }
+
+  # HTTP from ALB
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+    description     = "HTTP from ALB"
+  }
+
+  # All outbound (patching + SSM endpoints)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_tag}-linux-ubuntu-sg" }
+}
+
+# ============================================================
+# IAM Role — Linux EC2 (SSM only, no AD)
+# ============================================================
+
+resource "aws_iam_role" "ec2_ssm_linux" {
+  name = "${var.project_tag}-ec2-ssm-linux-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+
+  tags = { Name = "${var.project_tag}-ec2-ssm-linux-role" }
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core_linux" {
+  role       = aws_iam_role.ec2_ssm_linux.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ec2_ssm_linux" {
+  name = "${var.project_tag}-ec2-ssm-linux-profile"
+  role = aws_iam_role.ec2_ssm_linux.name
+}
+
+# ============================================================
+# Linux Ubuntu Standalone Instance
+# ============================================================
+
+resource "aws_instance" "linux_ubuntu" {
+  ami                    = local.linux_ami_id
+  instance_type          = var.linux_instance_type
+  subnet_id              = aws_subnet.private[0].id
+  vpc_security_group_ids = [aws_security_group.linux_ubuntu.id]
+  iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_linux.name
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  user_data = base64encode(<<-USERDATA
+#!/bin/bash
+set -euo pipefail
+LOG="/var/log/bootstrap.log"
+
+log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC'): $1" | tee -a "$LOG"; }
+
+log "Starting bootstrap..."
+
+# Update package index and install SSM agent
+log "Installing/updating SSM Agent..."
+snap install amazon-ssm-agent --classic || true
+systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+log "SSM Agent running."
+
+# Install nginx as a simple web server for health checks
+log "Installing nginx..."
+apt-get update -y
+apt-get install -y nginx
+systemctl enable nginx
+systemctl start nginx
+
+# Deploy health-check page
+TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+HOSTNAME=$(hostname)
+cat > /var/www/html/index.html <<HTML
+<html>
+<head><title>Health Check</title></head>
+<body>
+<h1>Healthy</h1>
+<p>Instance: $HOSTNAME</p>
+<p>OS: Ubuntu 22.04</p>
+<p>Time: $TIMESTAMP</p>
+</body>
+</html>
+HTML
+log "Health check page deployed."
+
+log "Bootstrap complete."
+USERDATA
+  )
+
+  tags = {
+    Name          = "${var.project_tag}-linux-ubuntu"
+    PatchGroup    = "Linux-Production"
+    OS            = "Ubuntu 22.04"
+    "auto-delete" = "no"
+  }
+
+  depends_on = [aws_nat_gateway.nat]
+}
+
+# ============================================================
+# SSM Patch Baseline (Ubuntu/Linux)
+# ============================================================
+
+resource "aws_ssm_patch_baseline" "ubuntu" {
+  name             = "${var.project_tag}-ubuntu-baseline"
+  operating_system = "UBUNTU"
+
+  approval_rule {
+    approve_after_days = 7
+    compliance_level   = "CRITICAL"
+
+    patch_filter {
+      key    = "PRIORITY"
+      values = ["Required", "Important"]
+    }
+  }
+
+  approval_rule {
+    approve_after_days = 14
+    compliance_level   = "HIGH"
+
+    patch_filter {
+      key    = "PRIORITY"
+      values = ["Standard", "Optional"]
+    }
+  }
+
+  tags = { Name = "${var.project_tag}-ubuntu-patch-baseline" }
+}
+
+resource "aws_ssm_patch_group" "ubuntu" {
+  baseline_id = aws_ssm_patch_baseline.ubuntu.id
+  patch_group = "Linux-Production"
+}
+
+# ============================================================
+# SSM Maintenance Window Target — Linux
+# ============================================================
+
+resource "aws_ssm_maintenance_window_target" "patch_linux" {
+  window_id     = aws_ssm_maintenance_window.patch.id
+  name          = "${var.project_tag}-patch-targets-linux"
+  resource_type = "INSTANCE"
+
+  targets {
+    key    = "tag:PatchGroup"
+    values = ["Linux-Production"]
+  }
+}
+
+resource "aws_ssm_maintenance_window_task" "patch_linux" {
+  window_id       = aws_ssm_maintenance_window.patch.id
+  name            = "${var.project_tag}-run-patch-baseline-linux"
+  task_type       = "RUN_COMMAND"
+  task_arn        = "AWS-RunPatchBaseline"
+  priority        = 2
+  max_concurrency = "50%"
+  max_errors      = "25%"
+
+  targets {
+    key    = "WindowTargetIds"
+    values = [aws_ssm_maintenance_window_target.patch_linux.id]
+  }
+
+  task_invocation_parameters {
+    run_command_parameters {
+      timeout_seconds = 3600
+
+      parameter {
+        name   = "Operation"
+        values = ["Install"]
+      }
+      parameter {
+        name   = "RebootOption"
+        values = ["RebootIfNeeded"]
+      }
+    }
+  }
+}
+
+# ============================================================
 # SSM Patch Baseline (Windows)
 # ============================================================
 
@@ -697,4 +934,19 @@ output "alb_arn" {
 output "alb_target_group_arn" {
   description = "ALB Target Group ARN"
   value       = aws_lb_target_group.windows.arn
+}
+
+output "linux_ubuntu_instance_id" {
+  description = "Linux Ubuntu standalone instance ID"
+  value       = aws_instance.linux_ubuntu.id
+}
+
+output "linux_ubuntu_private_ip" {
+  description = "Linux Ubuntu private IP"
+  value       = aws_instance.linux_ubuntu.private_ip
+}
+
+output "ubuntu_patch_baseline_id" {
+  description = "SSM Patch Baseline ID (Ubuntu)"
+  value       = aws_ssm_patch_baseline.ubuntu.id
 }
