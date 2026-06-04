@@ -363,7 +363,7 @@ EOF
 # ============================================================
 
 resource "aws_autoscaling_group" "windows" {
-  name                      = "${var.project_tag}-windows-asg"
+  name                      = "${var.project_tag}-windows-asg-2"
   desired_capacity          = var.asg_desired_capacity
   min_size                  = var.asg_min_size
   max_size                  = var.asg_max_size
