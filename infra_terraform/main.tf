@@ -600,49 +600,6 @@ resource "aws_instance" "linux_ubuntu" {
     http_put_response_hop_limit = 2
   }
 
-  user_data = base64encode(<<-USERDATA
-#!/bin/bash
-set -euo pipefail
-LOG="/var/log/bootstrap.log"
-
-log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC'): $1" | tee -a "$LOG"; }
-
-log "Starting bootstrap..."
-
-# Update package index and install SSM agent
-log "Installing/updating SSM Agent..."
-snap install amazon-ssm-agent --classic || true
-systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
-systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
-log "SSM Agent running."
-
-# Install nginx as a simple web server for health checks
-log "Installing nginx..."
-apt-get update -y
-apt-get install -y nginx
-systemctl enable nginx
-systemctl start nginx
-
-# Deploy health-check page
-TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
-HOSTNAME=$(hostname)
-cat > /var/www/html/index.html <<HTML
-<html>
-<head><title>Health Check</title></head>
-<body>
-<h1>Healthy</h1>
-<p>Instance: $HOSTNAME</p>
-<p>OS: Ubuntu 22.04</p>
-<p>Time: $TIMESTAMP</p>
-</body>
-</html>
-HTML
-log "Health check page deployed."
-
-log "Bootstrap complete."
-USERDATA
-  )
-
   tags = {
     Name          = "${var.project_tag}-linux-ubuntu"
     PatchGroup    = "Linux-Production"
