@@ -3,6 +3,7 @@ resource - https://docs.oracle.com/en-us/iaas/oracle-linux/oci/security-updates-
 resource - https://inventivehq.com/blog/windows-update-commands-powershell-usoclient-amp-wuauclt
 
 ### RHEL CDN updates
+https://access.redhat.com/errata-search/?q=Red+Hat+Enterprise+Linux&p=2&sort=portal_update_date+desc&rows=10&portal_product=Red%5C+Hat%5C+Enterprise%5C+Linux&portal_publication_date=2026&portal_architecture=x86_64&portal_product_version=10
 ```
 https://access.redhat.com/errata-search/?q=&p=1&sort=portal_update_date+desc&rows=10&portal_publication_date=2026&portal_product=Red%5C+Hat%5C+Hardened%5C+Images
 https://access.redhat.com/errata-search/?q=&p=1&sort=portal_update_date+desc&rows=10&portal_product=Red%5C+Hat%5C+Hardened%5C+Images
