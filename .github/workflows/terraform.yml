@@ -82,8 +82,8 @@ jobs:
           git stash
           echo "git checkout"
           git checkout aws/destroy/main
-          echo "git merge"
-          git merge origin/aws/destroy/main
+          echo "git reset to remote"
+          git reset --hard origin/aws/destroy/main
           mv main.tf.origin main.tf
           if [ -f terraform.tfstate ]; then
             mv terraform.tfstate state/
@@ -98,7 +98,7 @@ jobs:
       - name: Terraform Destroy on Failure
         if: failure()
         run: |
-          # terraform destroy -auto-approve -input=false
+          terraform destroy -auto-approve -input=false
           echo "Check if learn-tf-aws-vpc-ssm-role exists"
           if [ -n "$(aws iam list-roles --query 'Roles[*].RoleName' | grep learn-tf-aws-vpc-ssm-role | sed 's/[",]//g')" ]; then
               ROLE_NAME="learn-tf-aws-vpc-ssm-role"
