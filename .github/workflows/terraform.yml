@@ -95,6 +95,24 @@ jobs:
           git push origin aws/destroy/main
         working-directory: infra_terraform
 
+      - name: Push State on Failure
+        if: failure()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/davidawcloudsecurity/learn-aws-patch-manager.git
+          git fetch origin aws/destroy/main
+          git stash
+          git checkout aws/destroy/main
+          git reset --hard origin/aws/destroy/main
+          if [ -f ../infra_terraform/terraform.tfstate ]; then
+            cp ../infra_terraform/terraform.tfstate state/terraform.tfstate
+            git add state
+            git commit -m "state-after-failed-apply" --allow-empty
+            git push origin aws/destroy/main
+          fi
+        working-directory: infra_terraform
+
       - name: Terraform Destroy on Failure
         if: failure()
         run: |
