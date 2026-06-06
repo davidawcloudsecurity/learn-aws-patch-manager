@@ -11,7 +11,7 @@ resource "aws_vpc" "main" {
   cidr_block           = var.main_cidr_block
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = { Name = var.project_tag }
+  tags                 = { Name = var.project_tag }
 }
 
 locals {
@@ -40,7 +40,7 @@ resource "aws_subnet" "public" {
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = var.azs[count.index]
   map_public_ip_on_launch = true
-  tags = { Name = "${var.project_tag}-public-${var.azs[count.index]}" }
+  tags                    = { Name = "${var.project_tag}-public-${var.azs[count.index]}" }
 }
 
 resource "aws_subnet" "private" {
@@ -48,7 +48,7 @@ resource "aws_subnet" "private" {
   vpc_id            = local.vpc_id
   cidr_block        = var.private_subnet_cidrs[count.index]
   availability_zone = var.azs[count.index]
-  tags = { Name = "${var.project_tag}-private-${var.azs[count.index]}" }
+  tags              = { Name = "${var.project_tag}-private-${var.azs[count.index]}" }
 }
 
 # NAT Gateway — ASG instances in private subnets need outbound for patching
@@ -337,7 +337,7 @@ resource "aws_launch_template" "windows" {
 
   tag_specifications {
     resource_type = "volume"
-    tags = { Name = "${var.project_tag}-win-vol" }
+    tags          = { Name = "${var.project_tag}-win-vol" }
   }
 
   metadata_options {
