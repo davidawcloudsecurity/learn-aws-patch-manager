@@ -25,7 +25,48 @@ RHBA-2026:0859 bugfix cloud-init-23.4-7.el8_10.11.noarch 2026-01-20 22:20:56
 ```
 for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1"; do echo "Instance: $instance"; aws ssm describe-instance-patches --instance-id "$instance" --filters Key=State,Values=Missing Key=Severity,Values=Critical,Important --region us-east-1 --query 'Patches[*].KBId' --output json; echo "---"; done
 ```
+or Linux
+```
+for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1" "i-069f3a7627b9c1630"; do
+  echo "==============================="
+  echo "Instance: $instance"
+  
+  # Detect platform
+  PLATFORM=$(aws ssm describe-instance-information \
+    --filters "Key=InstanceIds,Values=$instance" \
+    --region us-east-1 \
+    --query 'InstanceInformationList[0].PlatformType' \
+    --output text)
+  
+  echo "Platform: $PLATFORM"
+  
+  if [ "$PLATFORM" = "Windows" ]; then
+    echo "--- Missing Critical/Important Patches (Windows) ---"
+    aws ssm describe-instance-patches \
+      --instance-id "$instance" \
+      --filters Key=State,Values=Missing Key=Severity,Values=Critical,Important \
+      --region us-east-1 \
+      --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity}' \
+      --output table
 
+  elif [ "$PLATFORM" = "Linux" ]; then
+    echo "--- Missing/Pending Patches (Linux/Ubuntu) ---"
+    aws ssm describe-instance-patches \
+      --instance-id "$instance" \
+      --filters Key=State,Values=Missing,Failed,InstalledPendingReboot \
+                Key=Classification,Values=Security \
+      --region us-east-1 \
+      --query 'Patches[*].{Title:Title,Severity:Severity,State:State,Classification:Classification}' \
+      --output table
+
+  else
+    echo "Unknown or unreachable platform: $PLATFORM — skipping"
+  fi
+
+  echo "==============================="
+  echo ""
+done
+```
 ### How to patch RHEL with cutoff date
 If you want December 2025 and earlier (but not January 2026):
 ```
