@@ -55,11 +55,13 @@ jobs:
           terraform validate
           terraform plan
           echo "Checking existing resources..."
-          if aws iam get-role --role-name learn-tf-aws-vpc-ssm-role >/dev/null 2>&1; then
-              echo "Role exists - will use existing"
+          ROLE_NAME=$(grep -A2 'resource "aws_iam_role"' main.tf | grep 'name' | head -1 | sed 's/.*"\(.*\)".*/\1/' | sed "s/\${var.project_tag}/$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')/")
+          echo "Detected role: $ROLE_NAME"
+          if [ -n "$ROLE_NAME" ] && aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+              echo "Role $ROLE_NAME exists - will use existing"
               terraform apply --auto-approve -var="use_existing_iam=true"
           else
-              echo "Role doesn't exist - will create new"
+              echo "Role $ROLE_NAME doesn't exist - will create new"
               terraform apply --auto-approve -var="use_existing_iam=false"
           fi
         working-directory: infra_terraform
