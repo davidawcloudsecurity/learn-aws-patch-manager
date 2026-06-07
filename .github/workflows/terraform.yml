@@ -53,8 +53,8 @@ jobs:
                   echo "Found existing state, copying to working directory..."
                   cp state/terraform.tfstate ./terraform.tfstate
               fi
+              git stash --include-untracked
               git checkout ${{ github.ref_name }}
-              git stash pop
           fi
           
           terraform init
