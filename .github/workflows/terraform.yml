@@ -88,8 +88,8 @@ jobs:
           done
           
           echo "Cleanup complete. Running terraform apply..."
-          terraform plan
-          terraform apply --auto-approve
+          # terraform plan
+          # terraform apply --auto-approve
         working-directory: infra_terraform
 
       - name: Git Config
