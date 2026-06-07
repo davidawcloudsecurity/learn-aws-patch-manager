@@ -121,14 +121,13 @@ for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1" "i-069f3a7627b9c1630
       --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity}' \
       --output table
 
-  if [ "$PLATFORM" = "Windows" ]; then
-      echo "--- Missing Patches (Windows) ---"
-      aws ssm describe-instance-patches \
-        --instance-id "$instance" \
-        --filters Key=State,Values=Missing \
-        --region us-east-1 \
-        --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity,Classification:Classification}' \
-        --output table
+    echo "--- Missing Patches (Windows) ---"
+    aws ssm describe-instance-patches \
+      --instance-id "$instance" \
+      --filters Key=State,Values=Missing \
+      --region us-east-1 \
+      --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity,Classification:Classification}' \
+      --output table
 
   elif [[ "$PLATFORM_NAME" == *"Red Hat"* ]] || [[ "$PLATFORM_NAME" == *"CentOS"* ]] || [[ "$PLATFORM_NAME" == *"Amazon Linux"* ]]; then
     echo "--- Missing Critical/Important Patches (RHEL/CentOS/AmazonLinux) ---"
