@@ -45,8 +45,7 @@ jobs:
           git fetch origin destroy/main 2>/dev/null || echo "destroy/main branch doesn't exist yet"
           if git show-branch remotes/origin/destroy/main 2>/dev/null; then
               echo "Found destroy/main branch, checking for state files..."
-              git reset --hard
-              git clean -fd
+              git stash --include-untracked
               git checkout destroy/main
               echo "git reset to remote"
               git reset --hard origin/destroy/main              
@@ -54,8 +53,8 @@ jobs:
                   echo "Found existing state, copying to working directory..."
                   cp state/terraform.tfstate ./terraform.tfstate
               fi
-              git stash
               git checkout ${{ github.ref_name }}
+              git stash pop
           fi
           
           terraform init
