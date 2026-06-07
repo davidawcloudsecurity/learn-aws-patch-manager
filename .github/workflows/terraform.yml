@@ -151,7 +151,7 @@ jobs:
           echo "Looking for IAM roles/profiles matching project: $PROJECT_TAG"
           
           # Find all roles matching project tag
-          ROLES=$(aws iam list-roles --no-paginate --query "Roles[?contains(RoleName, '${PROJECT_TAG}')].RoleName" --output text)
+          ROLES=$(aws iam list-roles --output json | grep -o '"RoleName": "[^"]*'"$PROJECT_TAG"'[^"]*"' | sed 's/"RoleName": "//;s/"//g')
           for ROLE_NAME in $ROLES; do
               [ -z "$ROLE_NAME" ] && continue
               echo "=== Cleaning up role: $ROLE_NAME ==="
@@ -185,7 +185,7 @@ jobs:
           done
           
           # Find and delete all instance profiles matching project tag
-          INSTANCE_PROFILES=$(aws iam list-instance-profiles --query "InstanceProfiles[?contains(InstanceProfileName, '${PROJECT_TAG}')].InstanceProfileName" --output text)
+          INSTANCE_PROFILES=$(aws iam list-instance-profiles --output json | grep -o '"InstanceProfileName": "[^"]*'"$PROJECT_TAG"'[^"]*"' | sed 's/"InstanceProfileName": "//;s/"//g')
           for PROFILE in $INSTANCE_PROFILES; do
               [ -z "$PROFILE" ] || [ "$PROFILE" = "None" ] && continue
               echo "Deleting instance profile: $PROFILE"
