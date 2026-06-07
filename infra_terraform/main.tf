@@ -554,6 +554,57 @@ resource "aws_security_group" "linux_ubuntu" {
 }
 
 # ============================================================
+# IAM Role — Lambda for ASG State Change (pre-created to avoid
+# permissions boundary issues with ams_ssm_automation_role)
+# ============================================================
+
+resource "aws_iam_role" "asg_state_change_lambda" {
+  name = "${var.project_tag}-asg-state-change-lambda-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+
+  tags = { Name = "${var.project_tag}-asg-state-change-lambda-role" }
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic" {
+  role       = aws_iam_role.asg_state_change_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "lambda_asg_access" {
+  name = "asg-enter-exit-standby-policy"
+  role = aws_iam_role.asg_state_change_lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:EnterStandby",
+          "autoscaling:ExitStandby",
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:UpdateAutoScalingGroup",
+          "autoscaling:SetDesiredCapacity",
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceStatus",
+          "ec2:CreateTags"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ============================================================
 # IAM Role — Linux EC2 (SSM only, no AD)
 # ============================================================
 
