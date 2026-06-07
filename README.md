@@ -112,28 +112,10 @@ for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1" "i-069f3a7627b9c1630
   echo "Platform: $PLATFORM | OS: $PLATFORM_NAME"
   
   if [ "$PLATFORM" = "Windows" ]; then
-    echo "--- Missing Critical/Important Patches (Windows) ---"
-    aws ssm describe-instance-patches \
-      --instance-id "$instance" \
-      --filters Key=State,Values=Missing \
-                Key=Severity,Values=Critical,Important \
-      --region us-east-1 \
-      --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity}' \
-      --output table
-
     echo "--- Missing Patches (Windows) ---"
     aws ssm describe-instance-patches \
       --instance-id "$instance" \
       --filters Key=State,Values=Missing \
-      --region us-east-1 \
-      --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity,Classification:Classification}' \
-      --output table
-
-    echo "--- Missing Patches (Windows) ---"
-    aws ssm describe-instance-patches \
-      --instance-id "$instance" \
-      --filters Key=State,Values=Missing \
-                Key=Severity,Values=Critical,Important,Unspecified \
       --region us-east-1 \
       --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity,Classification:Classification}' \
       --output table
