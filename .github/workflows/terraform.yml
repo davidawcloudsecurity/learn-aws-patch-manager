@@ -44,13 +44,8 @@ jobs:
           echo "Checking for existing Terraform state..."
           git fetch origin aws/destroy/main 2>/dev/null || echo "aws/destroy/main branch doesn't exist yet"
           if git show-branch remotes/origin/aws/destroy/main 2>/dev/null; then
-              echo "Found aws/destroy/main branch, checking for state files..."
-              git checkout aws/destroy/main
-              if [ -d "state" ] && [ -f "state/terraform.tfstate" ]; then
-                  echo "Found existing state, copying to working directory..."
-                  cp state/terraform.tfstate ./terraform.tfstate
-              fi
-              git checkout ${{ github.ref_name }}
+              echo "Found aws/destroy/main branch, pulling tfstate..."
+              git show origin/aws/destroy/main:state/terraform.tfstate > ./terraform.tfstate 2>/dev/null || echo "No state file found on aws/destroy/main"
           fi
           
           terraform init
