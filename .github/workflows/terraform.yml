@@ -58,14 +58,18 @@ jobs:
           terraform validate
           
           # Delete any existing IAM roles/profiles matching project_tag before apply
-          PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/' | tr -d '\r')
+
+          # Convert terraform.tfvars from Windows to Linux line endings
+          sed -i 's/\r//' terraform.tfvars
+          
+          # Now extract PROJECT_TAG cleanly
+          PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')
           echo "Cleaning up existing IAM resources matching: $PROJECT_TAG"
           
           # Delete matching IAM roles (pipe JSON through grep to avoid pagination issues)
           echo $PROJECT_TAG
           ROLES=$(aws iam list-roles --query "Roles[*].RoleName" --output json | grep "$PROJECT_TAG" | sed 's/[",]//g')
-          echo $ROLES
-          aws iam list-roles --query "Roles[*].RoleName" --output json | grep $PROJECT_TAG | sed 's/[",]//g'
+
           for ROLE_NAME in $ROLES; do
               echo "Found existing role: $ROLE_NAME"
               # Remove from instance profiles first
@@ -94,8 +98,8 @@ jobs:
           done
           
           echo "Cleanup complete. Running terraform apply..."
-          # terraform plan
-          # terraform apply --auto-approve
+          terraform plan
+          terraform apply --auto-approve
         working-directory: infra_terraform
 
       - name: Git Config
@@ -153,49 +157,44 @@ jobs:
           terraform destroy -auto-approve -input=false
           
           # Dynamically find roles/profiles created by this project
-          PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')
-          echo "Looking for IAM roles/profiles matching project: $PROJECT_TAG"
+          # Delete any existing IAM roles/profiles matching project_tag before apply
+
+          # Convert terraform.tfvars from Windows to Linux line endings
+          sed -i 's/\r//' terraform.tfvars
           
-          # Find all roles matching project tag
-          ROLES=$(aws iam list-roles --output json | grep -o '"RoleName": "[^"]*'"$PROJECT_TAG"'[^"]*"' | sed 's/"RoleName": "//;s/"//g')
+          # Now extract PROJECT_TAG cleanly
+          PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')
+          echo "Cleaning up existing IAM resources matching: $PROJECT_TAG"
+          
+          # Delete matching IAM roles (pipe JSON through grep to avoid pagination issues)
+          echo $PROJECT_TAG
+          ROLES=$(aws iam list-roles --query "Roles[*].RoleName" --output json | grep "$PROJECT_TAG" | sed 's/[",]//g')
+
           for ROLE_NAME in $ROLES; do
-              [ -z "$ROLE_NAME" ] && continue
-              echo "=== Cleaning up role: $ROLE_NAME ==="
-              
-              # Remove from any instance profiles
-              PROFILES=$(aws iam list-instance-profiles-for-role --role-name "$ROLE_NAME" --query 'InstanceProfiles[*].InstanceProfileName' --output text)
-              for PROFILE in $PROFILES; do
-                  [ -z "$PROFILE" ] || [ "$PROFILE" = "None" ] && continue
-                  echo "Removing role from instance profile: $PROFILE"
+              echo "Found existing role: $ROLE_NAME"
+              # Remove from instance profiles first
+              for PROFILE in $(aws iam list-instance-profiles-for-role --role-name "$ROLE_NAME" --query 'InstanceProfiles[*].InstanceProfileName' --output text); do
+                  echo "  Removing role from profile: $PROFILE"
                   aws iam remove-role-from-instance-profile --instance-profile-name "$PROFILE" --role-name "$ROLE_NAME"
               done
-              
               # Detach managed policies
-              ATTACHED=$(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].PolicyArn' --output text)
-              for POLICY_ARN in $ATTACHED; do
-                  [ -z "$POLICY_ARN" ] || [ "$POLICY_ARN" = "None" ] && continue
-                  echo "Detaching policy: $POLICY_ARN"
+              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].PolicyArn' --output text); do
+                  echo "  Detaching policy: $POLICY_ARN"
                   aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$POLICY_ARN"
               done
-              
               # Delete inline policies
-              INLINE=$(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output text)
-              for POLICY in $INLINE; do
-                  [ -z "$POLICY" ] || [ "$POLICY" = "None" ] && continue
-                  echo "Deleting inline policy: $POLICY"
+              for POLICY in $(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output text); do
                   aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY"
               done
-              
-              echo "Deleting role: $ROLE_NAME"
+              echo "  Deleting role: $ROLE_NAME"
               aws iam delete-role --role-name "$ROLE_NAME"
           done
           
-          # Find and delete all instance profiles matching project tag
-          INSTANCE_PROFILES=$(aws iam list-instance-profiles --output json | grep -o '"InstanceProfileName": "[^"]*'"$PROJECT_TAG"'[^"]*"' | sed 's/"InstanceProfileName": "//;s/"//g')
-          for PROFILE in $INSTANCE_PROFILES; do
-              [ -z "$PROFILE" ] || [ "$PROFILE" = "None" ] && continue
-              echo "Deleting instance profile: $PROFILE"
-              aws iam delete-instance-profile --instance-profile-name "$PROFILE"
+          # Delete matching instance profiles
+          PROFILES=$(aws iam list-instance-profiles --output json | grep -o '"InstanceProfileName": "[^"]*'"$PROJECT_TAG"'[^"]*"' | sed 's/"InstanceProfileName": "//;s/"//g')
+          for PROFILE_NAME in $PROFILES; do
+              echo "Deleting instance profile: $PROFILE_NAME"
+              aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME"
           done
           
           echo "Cleanup complete"
