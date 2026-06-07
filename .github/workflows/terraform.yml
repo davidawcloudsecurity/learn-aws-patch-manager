@@ -47,11 +47,12 @@ jobs:
               echo "Found destroy/main branch, checking for state files..."
               git stash
               git checkout destroy/main
+              echo "git reset to remote"
+              git reset --hard origin/destroy/main              
               if [ -d "state" ] && [ -f "state/terraform.tfstate" ]; then
                   echo "Found existing state, copying to working directory..."
                   cp state/terraform.tfstate ./terraform.tfstate
               fi
-              git stash pop
               git checkout ${{ github.ref_name }}
           fi
           
