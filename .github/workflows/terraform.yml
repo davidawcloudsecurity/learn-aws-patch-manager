@@ -40,20 +40,19 @@ jobs:
       # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
       - name: Terraform Init
         run: |
-          # Pull existing state from destroy/main branch if it exists
+          # Pull existing state from aws/destroy/main branch if it exists
           echo "Checking for existing Terraform state..."
-          git fetch origin destroy/main 2>/dev/null || echo "destroy/main branch doesn't exist yet"
-          if git show-branch remotes/origin/destroy/main 2>/dev/null; then
-              echo "Found destroy/main branch, checking for state files..."
+          git fetch origin aws/destroy/main 2>/dev/null || echo "aws/destroy/main branch doesn't exist yet"
+          if git show-branch remotes/origin/aws/destroy/main 2>/dev/null; then
+              echo "Found aws/destroy/main branch, checking for state files..."
               git stash --include-untracked
-              git checkout destroy/main
+              git checkout aws/destroy/main
               echo "git reset to remote"
-              git reset --hard origin/destroy/main              
+              git reset --hard origin/aws/destroy/main              
               if [ -d "state" ] && [ -f "state/terraform.tfstate" ]; then
                   echo "Found existing state, copying to working directory..."
                   cp state/terraform.tfstate ./terraform.tfstate
               fi
-              git stash --include-untracked
               git checkout ${{ github.ref_name }}
           fi
           
@@ -113,18 +112,18 @@ jobs:
           # Get the latest commit hash
           COMMIT_HASH=$(git rev-parse --short HEAD)          
           
-          # Fetch the latest changes from the remote 'destroy/main' branch
+          # Fetch the latest changes from the remote 'aws/destroy/main' branch
           git status
           echo "git fetch"
-          git fetch origin destroy/main
+          git fetch origin aws/destroy/main
           git add main.tf
           git commit -m "random-${COMMIT_HASH}" --allow-empty
           cp main.tf main.tf.origin
           git stash
           echo "git checkout"
-          git checkout destroy/main
+          git checkout aws/destroy/main
           echo "git reset to remote"
-          git reset --hard origin/destroy/main
+          git reset --hard origin/aws/destroy/main
           mv main.tf.origin main.tf
           if [ -f terraform.tfstate ]; then
             mv terraform.tfstate state/
@@ -132,8 +131,8 @@ jobs:
           fi
           git add main.tf
           git commit -m "random-${COMMIT_HASH}" --allow-empty
-          # Push the changes to the 'destroy/main' branch
-          git push origin destroy/main
+          # Push the changes to the 'aws/destroy/main' branch
+          git push origin aws/destroy/main
         working-directory: infra_terraform
 
       - name: Push State on Failure
@@ -142,15 +141,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/davidawcloudsecurity/learn-aws-patch-manager.git
-          git fetch origin destroy/main
+          git fetch origin aws/destroy/main
           git stash
-          git checkout destroy/main
-          git reset --hard origin/destroy/main
+          git checkout aws/destroy/main
+          git reset --hard origin/aws/destroy/main
           if [ -f ../infra_terraform/terraform.tfstate ]; then
             cp ../infra_terraform/terraform.tfstate state/terraform.tfstate
             git add state
             git commit -m "state-after-failed-apply" --allow-empty
-            git push origin destroy/main
+            git push origin aws/destroy/main
           fi
         working-directory: infra_terraform
 
