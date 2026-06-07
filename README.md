@@ -25,32 +25,49 @@ RHBA-2026:0859 bugfix cloud-init-23.4-7.el8_10.11.noarch 2026-01-20 22:20:56
 ```
 for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1"; do echo "Instance: $instance"; aws ssm describe-instance-patches --instance-id "$instance" --filters Key=State,Values=Missing Key=Severity,Values=Critical,Important --region us-east-1 --query 'Patches[*].KBId' --output json; echo "---"; done
 ```
-or Linux
+or Linux / Rhel
 ```
 for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1" "i-069f3a7627b9c1630"; do
   echo "==============================="
   echo "Instance: $instance"
   
-  # Detect platform
+  # Detect platform name and type
   PLATFORM=$(aws ssm describe-instance-information \
     --filters "Key=InstanceIds,Values=$instance" \
     --region us-east-1 \
     --query 'InstanceInformationList[0].PlatformType' \
     --output text)
+
+  PLATFORM_NAME=$(aws ssm describe-instance-information \
+    --filters "Key=InstanceIds,Values=$instance" \
+    --region us-east-1 \
+    --query 'InstanceInformationList[0].PlatformName' \
+    --output text)
   
-  echo "Platform: $PLATFORM"
+  echo "Platform: $PLATFORM | OS: $PLATFORM_NAME"
   
   if [ "$PLATFORM" = "Windows" ]; then
     echo "--- Missing Critical/Important Patches (Windows) ---"
     aws ssm describe-instance-patches \
       --instance-id "$instance" \
-      --filters Key=State,Values=Missing Key=Severity,Values=Critical,Important \
+      --filters Key=State,Values=Missing \
+                Key=Severity,Values=Critical,Important \
       --region us-east-1 \
       --query 'Patches[*].{KBId:KBId,Title:Title,Severity:Severity}' \
       --output table
 
-  elif [ "$PLATFORM" = "Linux" ]; then
-    echo "--- Missing/Pending Patches (Linux/Ubuntu) ---"
+  elif [[ "$PLATFORM_NAME" == *"Red Hat"* ]] || [[ "$PLATFORM_NAME" == *"CentOS"* ]] || [[ "$PLATFORM_NAME" == *"Amazon Linux"* ]]; then
+    echo "--- Missing Critical/Important Patches (RHEL/CentOS/AmazonLinux) ---"
+    aws ssm describe-instance-patches \
+      --instance-id "$instance" \
+      --filters Key=State,Values=Missing,Failed,InstalledPendingReboot \
+                Key=Severity,Values=Critical,Important \
+      --region us-east-1 \
+      --query 'Patches[*].{Title:Title,Severity:Severity,State:State,CVEIds:CVEIds}' \
+      --output table
+
+  elif [[ "$PLATFORM_NAME" == *"Ubuntu"* ]]; then
+    echo "--- Missing Security Patches (Ubuntu) ---"
     aws ssm describe-instance-patches \
       --instance-id "$instance" \
       --filters Key=State,Values=Missing,Failed,InstalledPendingReboot \
@@ -60,7 +77,13 @@ for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1" "i-069f3a7627b9c1630
       --output table
 
   else
-    echo "Unknown or unreachable platform: $PLATFORM — skipping"
+    echo "Unknown platform: $PLATFORM_NAME — showing all missing patches"
+    aws ssm describe-instance-patches \
+      --instance-id "$instance" \
+      --filters Key=State,Values=Missing,Failed \
+      --region us-east-1 \
+      --query 'Patches[*].{Title:Title,Severity:Severity,State:State,Classification:Classification}' \
+      --output table
   fi
 
   echo "==============================="
