@@ -58,8 +58,9 @@ jobs:
           PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')
           echo "Cleaning up existing IAM resources matching: $PROJECT_TAG"
           
-          # Delete matching IAM roles
-          for ROLE_NAME in $(aws iam list-roles --no-paginate --query "Roles[?contains(RoleName, '${PROJECT_TAG}')].RoleName" --output text); do
+          # Delete matching IAM roles (pipe JSON through grep to avoid pagination issues)
+          ROLES=$(aws iam list-roles --output json | grep -o '"RoleName": "[^"]*'"$PROJECT_TAG"'[^"]*"' | sed 's/"RoleName": "//;s/"//g')
+          for ROLE_NAME in $ROLES; do
               echo "Found existing role: $ROLE_NAME"
               # Remove from instance profiles first
               for PROFILE in $(aws iam list-instance-profiles-for-role --role-name "$ROLE_NAME" --query 'InstanceProfiles[*].InstanceProfileName' --output text 2>/dev/null); do
@@ -80,7 +81,8 @@ jobs:
           done
           
           # Delete matching instance profiles
-          for PROFILE_NAME in $(aws iam list-instance-profiles --query "InstanceProfiles[?contains(InstanceProfileName, '${PROJECT_TAG}')].InstanceProfileName" --output text); do
+          PROFILES=$(aws iam list-instance-profiles --output json | grep -o '"InstanceProfileName": "[^"]*'"$PROJECT_TAG"'[^"]*"' | sed 's/"InstanceProfileName": "//;s/"//g')
+          for PROFILE_NAME in $PROFILES; do
               echo "Deleting instance profile: $PROFILE_NAME"
               aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" 2>/dev/null || true
           done
