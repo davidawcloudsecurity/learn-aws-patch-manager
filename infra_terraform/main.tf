@@ -98,6 +98,7 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private[0].id
 }
 
+/*
 # ============================================================
 # AWS Managed Microsoft AD
 # ============================================================
@@ -127,7 +128,9 @@ resource "aws_vpc_dhcp_options_association" "ad_dns" {
   vpc_id          = local.vpc_id
   dhcp_options_id = aws_vpc_dhcp_options.ad_dns.id
 }
+*/
 
+/*
 # ============================================================
 # IAM Role — EC2 instances need SSM + Directory Service access
 # ============================================================
@@ -161,7 +164,9 @@ resource "aws_iam_instance_profile" "ec2_ssm_ad" {
   name = "${var.project_tag}-ec2-ssm-ad-profile"
   role = aws_iam_role.ec2_ssm_ad.name
 }
+*/
 
+/*
 # ============================================================
 # SSM Document + Association — Auto AD Domain Join
 # ============================================================
@@ -198,6 +203,7 @@ resource "aws_ssm_association" "ad_join" {
 
   depends_on = [aws_directory_service_directory.managed_ad]
 }
+*/
 
 # ============================================================
 # Security Group — Windows ASG (AD + SSM + Patching)
@@ -319,7 +325,7 @@ resource "aws_launch_template" "windows" {
   instance_type = var.windows_instance_type
 
   iam_instance_profile {
-    name = aws_iam_instance_profile.ec2_ssm_ad.name
+    name = aws_iam_instance_profile.ec2_ssm_linux.name  # Changed from ec2_ssm_ad (AD commented out)
   }
 
   vpc_security_group_ids = [aws_security_group.windows_asg.id]
@@ -328,7 +334,6 @@ resource "aws_launch_template" "windows" {
     resource_type = "instance"
     tags = {
       Name          = "${var.project_tag}-win-asg"
-      ADJoin        = "true"
       PatchGroup    = "Windows-Production"
       OS            = "Windows Server 2019"
       "auto-delete" = "no"
@@ -394,19 +399,12 @@ resource "aws_autoscaling_group" "windows" {
     propagate_at_launch = true
   }
   tag {
-    key                 = "ADJoin"
-    value               = "true"
-    propagate_at_launch = true
-  }
-  tag {
     key                 = "auto-delete"
     value               = "no"
     propagate_at_launch = true
   }
 
   depends_on = [
-    aws_directory_service_directory.managed_ad,
-    aws_ssm_association.ad_join,
     aws_nat_gateway.nat
   ]
 }
@@ -795,6 +793,7 @@ output "vpc_id" {
   value       = local.vpc_id
 }
 
+/*
 output "managed_ad_id" {
   description = "Managed AD directory ID"
   value       = aws_directory_service_directory.managed_ad.id
@@ -804,6 +803,7 @@ output "managed_ad_dns_ips" {
   description = "Managed AD DNS IPs"
   value       = aws_directory_service_directory.managed_ad.dns_ip_addresses
 }
+*/
 
 output "asg_name" {
   description = "Windows ASG name"

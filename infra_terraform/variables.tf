@@ -60,6 +60,7 @@ variable "use_existing_iam" {
   default     = false
 }
 
+/*
 # ============================================================
 # AWS Managed Microsoft AD
 # ============================================================
@@ -81,6 +82,7 @@ variable "ad_edition" {
   type        = string
   default     = "Standard"
 }
+*/
 
 # ============================================================
 # Windows ASG
