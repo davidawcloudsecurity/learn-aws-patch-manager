@@ -559,7 +559,7 @@ resource "aws_security_group" "linux_ubuntu" {
 # ============================================================
 
 resource "aws_iam_role" "asg_state_change_lambda" {
-  name = "${var.project_tag}-asg-state-change-lambda-role"
+  name = "customer-asg-state-change-lambda-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
