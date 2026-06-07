@@ -53,7 +53,8 @@ jobs:
               if [ -d "state" ] && [ -f "state/terraform.tfstate" ]; then
                   echo "Found existing state, copying to working directory..."
                   cp state/terraform.tfstate ./terraform.tfstate
-              fi                    
+              fi
+              git stash
               git checkout ${{ github.ref_name }}
           fi
           
