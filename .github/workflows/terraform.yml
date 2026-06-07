@@ -53,7 +53,7 @@ jobs:
                   echo "Found existing state, copying to working directory..."
                   cp state/terraform.tfstate ./terraform.tfstate
               fi
-              git stash pop              
+              git stash      
               git checkout ${{ github.ref_name }}
           fi
           
