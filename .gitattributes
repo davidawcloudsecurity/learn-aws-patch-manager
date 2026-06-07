@@ -1,0 +1,4 @@
+# .gitattributes
+*.tfvars text eol=lf
+*.tf     text eol=lf
+*.sh     text eol=lf
