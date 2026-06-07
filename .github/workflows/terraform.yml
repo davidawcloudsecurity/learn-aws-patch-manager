@@ -53,17 +53,41 @@ jobs:
           terraform init
           terraform fmt
           terraform validate
+          
+          # Delete any existing IAM roles/profiles matching project_tag before apply
+          PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')
+          echo "Cleaning up existing IAM resources matching: $PROJECT_TAG"
+          
+          # Delete matching IAM roles
+          for ROLE_NAME in $(aws iam list-roles --query "Roles[?contains(RoleName, '${PROJECT_TAG}')].RoleName" --output text); do
+              echo "Found existing role: $ROLE_NAME"
+              # Remove from instance profiles first
+              for PROFILE in $(aws iam list-instance-profiles-for-role --role-name "$ROLE_NAME" --query 'InstanceProfiles[*].InstanceProfileName' --output text 2>/dev/null); do
+                  echo "  Removing role from profile: $PROFILE"
+                  aws iam remove-role-from-instance-profile --instance-profile-name "$PROFILE" --role-name "$ROLE_NAME" 2>/dev/null || true
+              done
+              # Detach managed policies
+              for POLICY_ARN in $(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null); do
+                  echo "  Detaching policy: $POLICY_ARN"
+                  aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$POLICY_ARN" 2>/dev/null || true
+              done
+              # Delete inline policies
+              for POLICY in $(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output text 2>/dev/null); do
+                  aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY" 2>/dev/null || true
+              done
+              echo "  Deleting role: $ROLE_NAME"
+              aws iam delete-role --role-name "$ROLE_NAME" 2>/dev/null || true
+          done
+          
+          # Delete matching instance profiles
+          for PROFILE_NAME in $(aws iam list-instance-profiles --query "InstanceProfiles[?contains(InstanceProfileName, '${PROJECT_TAG}')].InstanceProfileName" --output text); do
+              echo "Deleting instance profile: $PROFILE_NAME"
+              aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" 2>/dev/null || true
+          done
+          
+          echo "Cleanup complete. Running terraform apply..."
           terraform plan
-          echo "Checking existing resources..."
-          ROLE_NAME=$(grep -A2 'resource "aws_iam_role"' main.tf | grep 'name' | head -1 | sed 's/.*"\(.*\)".*/\1/' | sed "s/\${var.project_tag}/$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')/")
-          echo "Detected role: $ROLE_NAME"
-          if [ -n "$ROLE_NAME" ] && aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
-              echo "Role $ROLE_NAME exists - will use existing"
-              terraform apply --auto-approve -var="use_existing_iam=true"
-          else
-              echo "Role $ROLE_NAME doesn't exist - will create new"
-              terraform apply --auto-approve -var="use_existing_iam=false"
-          fi
+          terraform apply --auto-approve
         working-directory: infra_terraform
 
       - name: Git Config
