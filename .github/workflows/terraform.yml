@@ -59,7 +59,7 @@ jobs:
           echo "Cleaning up existing IAM resources matching: $PROJECT_TAG"
           
           # Delete matching IAM roles
-          for ROLE_NAME in $(aws iam list-roles --query "Roles[?contains(RoleName, '${PROJECT_TAG}')].RoleName" --output text); do
+          for ROLE_NAME in $(aws iam list-roles --no-paginate --query "Roles[?contains(RoleName, '${PROJECT_TAG}')].RoleName" --output text); do
               echo "Found existing role: $ROLE_NAME"
               # Remove from instance profiles first
               for PROFILE in $(aws iam list-instance-profiles-for-role --role-name "$ROLE_NAME" --query 'InstanceProfiles[*].InstanceProfileName' --output text 2>/dev/null); do
@@ -149,7 +149,7 @@ jobs:
           echo "Looking for IAM roles/profiles matching project: $PROJECT_TAG"
           
           # Find all roles matching project tag
-          ROLES=$(aws iam list-roles --query "Roles[?contains(RoleName, '${PROJECT_TAG}')].RoleName" --output text)
+          ROLES=$(aws iam list-roles --no-paginate --query "Roles[?contains(RoleName, '${PROJECT_TAG}')].RoleName" --output text)
           for ROLE_NAME in $ROLES; do
               [ -z "$ROLE_NAME" ] && continue
               echo "=== Cleaning up role: $ROLE_NAME ==="
