@@ -58,7 +58,7 @@ jobs:
           terraform validate
           
           # Delete any existing IAM roles/profiles matching project_tag before apply
-          PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/')
+          PROJECT_TAG=$(grep 'project_tag' terraform.tfvars | sed 's/.*= *"\(.*\)"/\1/' | tr -d '\r')
           echo "Cleaning up existing IAM resources matching: $PROJECT_TAG"         
           # Delete matching IAM roles (pipe JSON through grep to avoid pagination issues)
           echo $PROJECT_TAG
