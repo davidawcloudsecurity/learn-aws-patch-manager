@@ -45,8 +45,12 @@ variable "azs" {
 variable "custom_ami_id" {
   description = "Custom AMI ID for the ASG. Leave empty to use latest Windows Server 2019 from Amazon."
   type        = string
-  default     = "ami-0ca7038e6ff499fc0"
+  # default     = "ami-0ca7038e6ff499fc0"
+  default     = "ami-075309a66c5dedf22"
 }
+
+# ami-073ed03c725f813eb|  Windows_Server-2019-English-Full-Base-2026.05.13  |  2026-05-13T19:00:53.000Z  |
+# ami-075309a66c5dedf22|  Windows_Server-2019-English-Full-Base-2026.04.15  |  2026-04-16T01:39:19.000Z  |
 
 variable "create_vpc" {
   description = "Whether to create VPC resources (false = use existing)"
