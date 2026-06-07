@@ -60,7 +60,7 @@ jobs:
           
           # Delete matching IAM roles (pipe JSON through grep to avoid pagination issues)
           ROLES=$(aws iam list-roles --query "Roles[*].RoleName" --output json | grep "$PROJECT_TAG" | sed 's/[",]//g')
-          aws iam list-roles --query "Roles[*].RoleName" --output json
+          aws iam list-roles --query "Roles[*].RoleName" --output json | grep "$PROJECT_TAG" | sed 's/[",]//g'
           for ROLE_NAME in $ROLES; do
               echo "Found existing role: $ROLE_NAME"
               # Remove from instance profiles first
