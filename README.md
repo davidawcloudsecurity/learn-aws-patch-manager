@@ -21,6 +21,11 @@ dnf upgrade-minimal --advisory=$(dnf updateinfo list available -v  | grep 'A-' |
 RHBA-2026:0859 bugfix cloud-init-23.4-7.el8_10.11.noarch 2026-01-20 22:20:56
 ```
 
+### How to pull missing KBs for windows in patch manager
+```
+for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1"; do echo "Instance: $instance"; aws ssm describe-instance-patches --instance-id "$instance" --filters Key=State,Values=Missing Key=Severity,Values=Critical,Important --region us-east-1 --query 'Patches[*].KBId' --output json; echo "---"; done
+```
+
 ### How to patch RHEL with cutoff date
 If you want December 2025 and earlier (but not January 2026):
 ```
