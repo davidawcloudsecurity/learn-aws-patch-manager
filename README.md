@@ -1,3 +1,19 @@
+### Powershell commands to identify command line
+```
+Get-CimInstance Win32_Process |
+Where-Object {$_.Name -match 'powershell|pwsh'} |
+Select-Object ProcessId,Name,CommandLine
+
+Get-Process powershell,pwsh |
+Select-Object Id,ProcessName,
+@{N='RunningFor';E={(Get-Date)-$_.StartTime}} |
+Sort-Object RunningFor -Descending
+
+Get-CimInstance Win32_Process |
+Where-Object {$_.Name -match 'powershell|pwsh'} |
+Select-Object ProcessId,ParentProcessId,CommandLine
+```
+
 # learn-aws-patch-manager
 resource - https://docs.oracle.com/en-us/iaas/oracle-linux/oci/security-updates-using-dnf.htm
 resource - https://inventivehq.com/blog/windows-update-commands-powershell-usoclient-amp-wuauclt
