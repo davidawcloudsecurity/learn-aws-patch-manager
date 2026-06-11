@@ -1,13 +1,9 @@
 ### Powershell commands to identify command line
 ```
+# First layer. If nothing shows. Use the second
 Get-CimInstance Win32_Process |
 Where-Object {$_.Name -match 'powershell|pwsh'} |
 Select-Object ProcessId,Name,CommandLine
-
-Get-Process powershell,pwsh |
-Select-Object Id,ProcessName,
-@{N='RunningFor';E={(Get-Date)-$_.StartTime}} |
-Sort-Object RunningFor -Descending
 
 Get-CimInstance Win32_Process |
 Where-Object {$_.Name -match 'powershell|pwsh'} |
@@ -15,6 +11,11 @@ Select-Object ProcessId,ParentProcessId,CommandLine
 
 # The parent process will tell you if these were launched by a scheduled task, a service, a user session, or something else. If the owner comes back as SYSTEM or a service account, check:
 Get-WmiObject Win32_Process -Filter "ProcessId=3076" | Select Name, CommandLine
+
+Get-Process powershell,pwsh |
+Select-Object Id,ProcessName,
+@{N='RunningFor';E={(Get-Date)-$_.StartTime}} |
+Sort-Object RunningFor -Descending
 ```
 
 # learn-aws-patch-manager
