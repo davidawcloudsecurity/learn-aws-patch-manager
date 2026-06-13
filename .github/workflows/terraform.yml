@@ -5,7 +5,7 @@ name: learn-aws-patch-manager-apply
 on:
   push:
     branches:
-      - SR-216
+      - SR-216-2
   workflow_dispatch:
 
 env:
