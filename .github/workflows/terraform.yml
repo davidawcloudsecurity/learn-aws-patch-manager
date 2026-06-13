@@ -156,7 +156,7 @@ jobs:
       - name: Terraform Destroy on Failure
         if: failure()
         run: |
-          terraform destroy -auto-approve -input=false
+          # terraform destroy -auto-approve -input=false
           
           # Dynamically find roles/profiles created by this project
           # Delete any existing IAM roles/profiles matching project_tag before apply
