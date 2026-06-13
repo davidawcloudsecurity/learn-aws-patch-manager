@@ -51,7 +51,7 @@ resource "aws_subnet" "private" {
   tags              = { Name = "${var.project_tag}-private-${var.azs[count.index]}" }
 }
 
-# NAT Gateway — ASG instances in private subnets need outbound for patching
+# NAT Gateway â€” ASG instances in private subnets need outbound for patching
 resource "aws_eip" "nat" {
   count  = var.create_vpc ? 1 : 0
   domain = "vpc"
@@ -98,7 +98,6 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private[0].id
 }
 
-/*
 # ============================================================
 # AWS Managed Microsoft AD
 # ============================================================
@@ -128,11 +127,9 @@ resource "aws_vpc_dhcp_options_association" "ad_dns" {
   vpc_id          = local.vpc_id
   dhcp_options_id = aws_vpc_dhcp_options.ad_dns.id
 }
-*/
 
-/*
 # ============================================================
-# IAM Role — EC2 instances need SSM + Directory Service access
+# IAM Role â€” EC2 instances need SSM + Directory Service access
 # ============================================================
 
 resource "aws_iam_role" "ec2_ssm_ad" {
@@ -164,11 +161,9 @@ resource "aws_iam_instance_profile" "ec2_ssm_ad" {
   name = "${var.project_tag}-ec2-ssm-ad-profile"
   role = aws_iam_role.ec2_ssm_ad.name
 }
-*/
 
-/*
 # ============================================================
-# SSM Document + Association — Auto AD Domain Join
+# SSM Document + Association â€” Auto AD Domain Join
 # ============================================================
 
 resource "aws_ssm_document" "ad_join" {
@@ -203,10 +198,9 @@ resource "aws_ssm_association" "ad_join" {
 
   depends_on = [aws_directory_service_directory.managed_ad]
 }
-*/
 
 # ============================================================
-# Security Group — Windows ASG (AD + SSM + Patching)
+# Security Group â€” Windows ASG (AD + SSM + Patching)
 # ============================================================
 
 resource "aws_security_group" "windows_asg" {
@@ -325,7 +319,7 @@ resource "aws_launch_template" "windows" {
   instance_type = var.windows_instance_type
 
   iam_instance_profile {
-    name = aws_iam_instance_profile.ec2_ssm_linux.name # Changed from ec2_ssm_ad (AD commented out)
+    name = aws_iam_instance_profile.ec2_ssm_ad.name
   }
 
   vpc_security_group_ids = [aws_security_group.windows_asg.id]
@@ -336,6 +330,7 @@ resource "aws_launch_template" "windows" {
       Name          = "${var.project_tag}-win-asg"
       PatchGroup    = "Windows-Production"
       OS            = "Windows Server 2019"
+      ADJoin        = "true"
       "auto-delete" = "no"
     }
   }
@@ -516,7 +511,7 @@ data "aws_ami" "ubuntu_2204" {
 }
 
 # ============================================================
-# Security Group — Linux Ubuntu Standalone
+# Security Group â€” Linux Ubuntu Standalone
 # ============================================================
 
 resource "aws_security_group" "linux_ubuntu" {
@@ -554,7 +549,7 @@ resource "aws_security_group" "linux_ubuntu" {
 }
 
 # ============================================================
-# IAM Role — Lambda for ASG State Change (pre-created to avoid
+# IAM Role â€” Lambda for ASG State Change (pre-created to avoid
 # permissions boundary issues with ams_ssm_automation_role)
 # ============================================================
 
@@ -605,7 +600,7 @@ resource "aws_iam_role_policy" "lambda_asg_access" {
 }
 
 # ============================================================
-# IAM Role — Linux EC2 (SSM only, no AD)
+# IAM Role â€” Linux EC2 (SSM only, no AD)
 # ============================================================
 
 resource "aws_iam_role" "ec2_ssm_linux" {
@@ -697,7 +692,7 @@ resource "aws_ssm_patch_group" "ubuntu" {
 }
 
 # ============================================================
-# SSM Maintenance Window Target — Linux
+# SSM Maintenance Window Target â€” Linux
 # ============================================================
 
 resource "aws_ssm_maintenance_window_target" "patch_linux" {
@@ -844,7 +839,6 @@ output "vpc_id" {
   value       = local.vpc_id
 }
 
-/*
 output "managed_ad_id" {
   description = "Managed AD directory ID"
   value       = aws_directory_service_directory.managed_ad.id
@@ -854,7 +848,6 @@ output "managed_ad_dns_ips" {
   description = "Managed AD DNS IPs"
   value       = aws_directory_service_directory.managed_ad.dns_ip_addresses
 }
-*/
 
 output "asg_name" {
   description = "Windows ASG name"
