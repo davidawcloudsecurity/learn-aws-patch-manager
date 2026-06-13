@@ -10,7 +10,7 @@ use_existing_iam = false
 # Managed AD
 ad_domain_name = "corp.learn-patch.local"
 ad_edition     = "Standard"
-# Set password via env var: export TF_VAR_ad_admin_password='YourSecurePassword!'
+ad_admin_password ="YourP@ssw0rd!"
 
 # ASG
 windows_instance_type = "t3.medium"
