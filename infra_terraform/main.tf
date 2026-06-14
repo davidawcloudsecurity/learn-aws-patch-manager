@@ -51,7 +51,7 @@ resource "aws_subnet" "private" {
   tags              = { Name = "${var.project_tag}-private-${var.azs[count.index]}" }
 }
 
-# NAT Gateway Ã¢â‚¬â€ ASG instances in private subnets need outbound for patching
+# NAT Gateway ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ASG instances in private subnets need outbound for patching
 resource "aws_eip" "nat" {
   count  = var.create_vpc ? 1 : 0
   domain = "vpc"
@@ -129,7 +129,7 @@ resource "aws_vpc_dhcp_options_association" "ad_dns" {
 }
 
 # ============================================================
-# IAM Role Ã¢â‚¬â€ EC2 instances need SSM + Directory Service access
+# IAM Role ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â EC2 instances need SSM + Directory Service access
 # ============================================================
 
 resource "aws_iam_role" "ec2_ssm_ad" {
@@ -163,7 +163,7 @@ resource "aws_iam_instance_profile" "ec2_ssm_ad" {
 }
 
 # ============================================================
-# SSM Document + Association Ã¢â‚¬â€ Auto AD Domain Join
+# SSM Document + Association ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Auto AD Domain Join
 # ============================================================
 
 resource "aws_ssm_document" "ad_join" {
@@ -200,7 +200,7 @@ resource "aws_ssm_association" "ad_join" {
 }
 
 # ============================================================
-# Security Group Ã¢â‚¬â€ Windows ASG (AD + SSM + Patching)
+# Security Group ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Windows ASG (AD + SSM + Patching)
 # ============================================================
 
 resource "aws_security_group" "windows_asg" {
@@ -384,6 +384,8 @@ protected void Page_Load(object sender, EventArgs e)
         Session["loginTime"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
         Session["loginHost"] = Environment.MachineName;
         Session["count"] = 0;
+        Response.Redirect(Request.Url.AbsolutePath);
+        return;
     }
     // Handle logout
     if (Request.Form["action"] == "logout")
@@ -666,6 +668,12 @@ resource "aws_lb_target_group" "windows" {
     matcher             = "200-399"
   }
 
+
+  stickiness {
+    enabled         = true
+    type            = "lb_cookie"
+    cookie_duration = 86400
+  }
   tags = { Name = "${var.project_tag}-tg" }
 }
 
@@ -705,7 +713,7 @@ data "aws_ami" "ubuntu_2204" {
 }
 
 # ============================================================
-# Security Group Ã¢â‚¬â€ Linux Ubuntu Standalone
+# Security Group ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Linux Ubuntu Standalone
 # ============================================================
 
 resource "aws_security_group" "linux_ubuntu" {
@@ -743,7 +751,7 @@ resource "aws_security_group" "linux_ubuntu" {
 }
 
 # ============================================================
-# IAM Role Ã¢â‚¬â€ Lambda for ASG State Change (pre-created to avoid
+# IAM Role ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Lambda for ASG State Change (pre-created to avoid
 # permissions boundary issues with ams_ssm_automation_role)
 # ============================================================
 
@@ -794,7 +802,7 @@ resource "aws_iam_role_policy" "lambda_asg_access" {
 }
 
 # ============================================================
-# IAM Role Ã¢â‚¬â€ Linux EC2 (SSM only, no AD)
+# IAM Role ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Linux EC2 (SSM only, no AD)
 # ============================================================
 
 resource "aws_iam_role" "ec2_ssm_linux" {
@@ -886,7 +894,7 @@ resource "aws_ssm_patch_group" "ubuntu" {
 }
 
 # ============================================================
-# SSM Maintenance Window Target Ã¢â‚¬â€ Linux
+# SSM Maintenance Window Target ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Linux
 # ============================================================
 
 resource "aws_ssm_maintenance_window_target" "patch_linux" {
