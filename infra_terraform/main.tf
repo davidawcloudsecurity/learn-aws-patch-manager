@@ -670,7 +670,7 @@ resource "aws_lb_target_group" "windows" {
 
 
   stickiness {
-    enabled         = true
+    enabled         = false
     type            = "lb_cookie"
     cookie_duration = 86400
   }
