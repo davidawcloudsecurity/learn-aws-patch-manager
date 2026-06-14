@@ -349,6 +349,72 @@ resource "aws_launch_template" "windows" {
   user_data = base64encode(<<-EOF
 <powershell>
 Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+
+# Create default.aspx page
+$aspxContent = @"
+<%@ Page Language="C#" %>
+<%@ Import Namespace="System.Net" %>
+
+<!DOCTYPE html>
+<script runat="server">
+
+    protected string GetInstanceId()
+    {
+        try
+        {
+            using (var client = new WebClient())
+            {
+                client.Headers.Add("Metadata", "true");
+                return client.DownloadString(
+                    "http://169.254.169.254/latest/meta-data/instance-id"
+                );
+            }
+        }
+        catch
+        {
+            return "N/A";
+        }
+    }
+
+</script>
+
+<html>
+<head>
+    <title>IIS Sticky Session Demo</title>
+</head>
+
+<body style="font-family: Arial">
+
+<h2>🚀 IIS Sticky Session / ASG Demo Page</h2>
+
+<hr/>
+
+<p><b>Hostname:</b> <% Response.Write(Environment.MachineName); %></p>
+
+<p><b>Instance ID:</b> <% Response.Write(GetInstanceId()); %></p>
+
+<p><b>Session ID:</b> <% Response.Write(Session.SessionID); %></p>
+
+<p><b>Session Counter:</b>
+<%
+    if (Session["count"] == null)
+        Session["count"] = 0;
+
+    Session["count"] = (int)Session["count"] + 1;
+    Response.Write(Session["count"]);
+%>
+</p>
+
+<hr/>
+
+<p>
+Refresh this page to test sticky sessions.
+</p>
+
+</body>
+</html>
+"@
+Set-Content -Path "C:\inetpub\wwwroot\default.aspx" -Value $aspxContent
 </powershell>
 EOF
   )
