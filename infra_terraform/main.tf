@@ -391,6 +391,7 @@ protected void Page_Load(object sender, EventArgs e)
     if (Request.Form["action"] == "logout")
     {
         Session.Abandon();
+        Response.Cookies.Add(new HttpCookie("ASP.NET_SessionId", "") { Expires = DateTime.UtcNow.AddDays(-1) });
         Response.Redirect(Request.Url.AbsolutePath, false);
         Context.ApplicationInstance.CompleteRequest(); return;
     }
