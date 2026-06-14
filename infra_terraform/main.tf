@@ -744,7 +744,7 @@ resource "aws_lb_target_group" "windows" {
 
   health_check {
     enabled             = true
-    path                = "/login.aspx"
+    path                = "/"
     port                = "traffic-port"
     protocol            = "HTTP"
     healthy_threshold   = 3
