@@ -56,6 +56,10 @@ jobs:
       
       - name: Terraform Destroy Targeted Resources
         run: |
+          terraform state rm aws_lb.main || true
+          terraform state rm aws_lb_listener.http || true
+          terraform state rm aws_lb_target_group.windows || true
+          terraform state rm aws_autoscaling_attachment.alb || true
           terraform destroy -auto-approve -input=false
           if [ -n "$(aws iam list-roles --query 'Roles[*].RoleName' | grep AmazonSSMManagedInstanceRole | sed 's/[",]//g')" ]; then
             aws iam delete-role --role-name "$(aws iam list-roles --query 'Roles[*].RoleName' | grep AmazonSSMManagedInstanceRole | sed 's/[",]//g')"
