@@ -349,72 +349,96 @@ resource "aws_launch_template" "windows" {
   user_data = base64encode(<<-EOF
 <powershell>
 Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+Install-WindowsFeature -Name Web-Asp-Net45
 
-# Create default.aspx page
+# Enable ASP.NET session state
+Import-Module WebAdministration
+
+# Create default.aspx with styled sticky session demo
 $aspxContent = @"
 <%@ Page Language="C#" %>
 <%@ Import Namespace="System.Net" %>
-
 <!DOCTYPE html>
 <script runat="server">
-
-    protected string GetInstanceId()
+protected string GetInstanceId()
+{
+    try
     {
-        try
+        using (var client = new WebClient())
         {
-            using (var client = new WebClient())
-            {
-                client.Headers.Add("Metadata", "true");
-                return client.DownloadString(
-                    "http://169.254.169.254/latest/meta-data/instance-id"
-                );
-            }
-        }
-        catch
-        {
-            return "N/A";
+            client.Headers.Add("X-aws-ec2-metadata-token-ttl-seconds", "21600");
+            string token = client.UploadString("http://169.254.169.254/latest/api/token", "PUT", "");
+            client.Headers.Add("X-aws-ec2-metadata-token", token);
+            return client.DownloadString("http://169.254.169.254/latest/meta-data/instance-id");
         }
     }
-
+    catch { return "N/A"; }
+}
 </script>
-
 <html>
 <head>
-    <title>IIS Sticky Session Demo</title>
+  <title>ASG Sticky Session Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: linear-gradient(135deg, #1e3a5f 0%, #0f2027 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 40px; max-width: 520px; width: 100%; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .header h1 { font-size: 1.6em; color: #1e3a5f; margin-bottom: 8px; }
+    .header p { color: #6b7280; font-size: 0.9em; }
+    .info-grid { display: grid; gap: 12px; }
+    .info-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .info-item .label { font-size: 0.85em; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .info-item .value { font-family: "Cascadia Code", "Fira Code", monospace; font-size: 0.9em; color: #1e293b; font-weight: 600; }
+    .counter-item { background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; }
+    .counter-item .label { color: rgba(255,255,255,0.8); }
+    .counter-item .value { color: #fff; font-size: 1.4em; }
+    .footer { text-align: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+    .footer p { color: #94a3b8; font-size: 0.8em; }
+    .badge { display: inline-block; background: #dcfce7; color: #166534; font-size: 0.75em; padding: 3px 10px; border-radius: 20px; font-weight: 600; margin-top: 8px; }
+  </style>
 </head>
-
-<body style="font-family: Arial">
-
-<h2>🚀 IIS Sticky Session / ASG Demo Page</h2>
-
-<hr/>
-
-<p><b>Hostname:</b> <% Response.Write(Environment.MachineName); %></p>
-
-<p><b>Instance ID:</b> <% Response.Write(GetInstanceId()); %></p>
-
-<p><b>Session ID:</b> <% Response.Write(Session.SessionID); %></p>
-
-<p><b>Session Counter:</b>
-<%
-    if (Session["count"] == null)
-        Session["count"] = 0;
-
-    Session["count"] = (int)Session["count"] + 1;
-    Response.Write(Session["count"]);
-%>
-</p>
-
-<hr/>
-
-<p>
-Refresh this page to test sticky sessions.
-</p>
-
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>ASG Instance Dashboard</h1>
+      <p>Sticky Session & Load Balancing Demo</p>
+      <span class="badge">HEALTHY</span>
+    </div>
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="label">Hostname</span>
+        <span class="value"><% Response.Write(Environment.MachineName); %></span>
+      </div>
+      <div class="info-item">
+        <span class="label">Instance ID</span>
+        <span class="value"><% Response.Write(GetInstanceId()); %></span>
+      </div>
+      <div class="info-item">
+        <span class="label">Session ID</span>
+        <span class="value"><% Response.Write(Session.SessionID.Substring(0, 12) + "..."); %></span>
+      </div>
+      <div class="info-item counter-item">
+        <span class="label">Page Views (Session)</span>
+        <span class="value"><%
+          if (Session["count"] == null) Session["count"] = 0;
+          Session["count"] = (int)Session["count"] + 1;
+          Response.Write(Session["count"]);
+        %></span>
+      </div>
+    </div>
+    <div class="footer">
+      <p>Refresh to verify sticky sessions. Counter increments = same instance.</p>
+      <p style="margin-top:6px;">Served at <% Response.Write(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")); %></p>
+    </div>
+  </div>
 </body>
 </html>
 "@
-Set-Content -Path "C:\inetpub\wwwroot\default.aspx" -Value $aspxContent
+Set-Content -Path "C:\inetpub\wwwroot\default.aspx" -Value $aspxContent -Encoding UTF8
+
+# Remove default IIS pages so default.aspx is served
+Remove-Item -Path "C:\inetpub\wwwroot\iisstart.htm" -ErrorAction SilentlyContinue
+Remove-Item -Path "C:\inetpub\wwwroot\iisstart.png" -ErrorAction SilentlyContinue
 </powershell>
 EOF
   )
