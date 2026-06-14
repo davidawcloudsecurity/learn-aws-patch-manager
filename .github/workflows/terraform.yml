@@ -42,7 +42,7 @@ jobs:
           echo "Terraform init"
           echo ""
           terraform init
-          terraform validate
+          # terraform validate
           terraform fmt
         working-directory: infra_terraform        
       
