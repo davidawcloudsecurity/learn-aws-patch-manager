@@ -631,6 +631,46 @@ Set-Content -Path "C:\inetpub\wwwroot\dashboard.aspx" -Value $dashboardContent -
 # Remove default IIS pages
 Remove-Item -Path "C:\inetpub\wwwroot\iisstart.htm" -ErrorAction SilentlyContinue
 Remove-Item -Path "C:\inetpub\wwwroot\iisstart.png" -ErrorAction SilentlyContinue
+
+# Install URL Rewrite module (required for IIS URL rewriting)
+$urlRewriteMsi = "C:\urlrewrite2.msi"
+Invoke-WebRequest -Uri "https://download.microsoft.com/download/1/2/8/128E2E22-C1B9-44A4-BE2A-5859ED1D4592/rewrite_amd64_en-US.msi" -OutFile $urlRewriteMsi
+Start-Process msiexec.exe -ArgumentList "/i $urlRewriteMsi /quiet /norestart" -Wait
+
+# Create web.config with URL rewrite rules
+$webConfig = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.webServer>
+    <rewrite>
+      <rules>
+        <rule name="login to login.aspx" stopProcessing="true">
+          <match url="^login$" />
+          <action type="Rewrite" url="/login.aspx" />
+        </rule>
+        <rule name="dashboard to dashboard.aspx" stopProcessing="true">
+          <match url="^dashboard$" />
+          <action type="Rewrite" url="/dashboard.aspx" />
+        </rule>
+      </rules>
+    </rewrite>
+  </system.webServer>
+</configuration>
+"@
+Set-Content -Path "C:\inetpub\wwwroot\web.config" -Value $webConfig -Encoding UTF8
+
+# login.aspx - after successful login, redirect to /dashboard
+(Get-Content "C:\inetpub\wwwroot\login.aspx") -replace 'Redirect\("/dashboard\.aspx"', 'Redirect("/dashboard"' | Set-Content "C:\inetpub\wwwroot\login.aspx"
+
+# login.aspx - if already logged in, redirect to /dashboard
+(Get-Content "C:\inetpub\wwwroot\login.aspx") -replace 'Redirect\("/dashboard\.aspx"', 'Redirect("/dashboard"' | Set-Content "C:\inetpub\wwwroot\login.aspx"
+
+# dashboard.aspx - if not logged in, redirect to /login
+(Get-Content "C:\inetpub\wwwroot\dashboard.aspx") -replace 'Redirect\("/login\.aspx"', 'Redirect("/login"' | Set-Content "C:\inetpub\wwwroot\dashboard.aspx"
+
+# dashboard.aspx - after logout, redirect to /login
+(Get-Content "C:\inetpub\wwwroot\dashboard.aspx") -replace 'Redirect\("/login\.aspx"', 'Redirect("/login"' | Set-Content "C:\inetpub\wwwroot\dashboard.aspx"
+iisreset /restart
 </powershell>
 EOF
   )
