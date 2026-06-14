@@ -920,7 +920,7 @@ resource "aws_iam_instance_profile" "ec2_ssm_linux" {
 # ============================================================
 
 resource "aws_instance" "linux_ubuntu" {
-  ami                    = local.linux_ami_id
+  ami                    = "ami-02fd066b86800f60c"
   instance_type          = var.linux_instance_type
   subnet_id              = aws_subnet.private[0].id
   vpc_security_group_ids = [aws_security_group.linux_ubuntu.id]
