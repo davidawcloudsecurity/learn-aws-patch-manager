@@ -227,7 +227,7 @@ resource "aws_ssm_association" "ad_join" {
 }
 
 # ============================================================
-# Security Group ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Windows ASG (AD + SSM + Patching)
+# Security Group Windows ASG (AD + SSM + Patching)
 # ============================================================
 
 resource "aws_security_group" "windows_asg" {
@@ -377,24 +377,21 @@ protected string GetInstanceId()
 
 protected void Page_Load(object sender, EventArgs e)
 {
-    // Handle login
     if (Request.Form["action"] == "login")
     {
         Session["user"] = Request.Form["username"];
         Session["loginTime"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
         Session["loginHost"] = Environment.MachineName;
         Session["count"] = 0;
-        Response.Redirect(Request.Url.AbsolutePath, false);
-        Context.ApplicationInstance.CompleteRequest(); return;
+        // Remove the Redirect — just let the page render
+        return;
     }
-    // Handle logout
     if (Request.Form["action"] == "logout")
     {
         Session.Abandon();
-        Response.Redirect(Request.Url.AbsolutePath, false);
-        Context.ApplicationInstance.CompleteRequest(); return;
+        // Remove the Redirect — just let the page render
+        return;
     }
-    // Increment counter if logged in
     if (Session["user"] != null)
     {
         Session["count"] = (int)Session["count"] + 1;
