@@ -1146,7 +1146,7 @@ resource "aws_ssm_patch_baseline" "ubuntu" {
   operating_system = "UBUNTU"
 
   approval_rule {
-    approve_after_days = 7
+    approve_after_days = 0
     compliance_level   = "CRITICAL"
 
     patch_filter {
@@ -1156,7 +1156,7 @@ resource "aws_ssm_patch_baseline" "ubuntu" {
   }
 
   approval_rule {
-    approve_after_days = 14
+    approve_after_days = 0
     compliance_level   = "HIGH"
 
     patch_filter {
