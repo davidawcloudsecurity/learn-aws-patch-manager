@@ -1,0 +1,329 @@
+#
+# Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+---
+description: |-
+  ## Intent
+  Modify an Amazon EC2 ASG's instances to utilize a smaller version of the same instance type. For example, instead of m5.2xlarge, Amazon EC2 ASG instances will utilize m5.xlarge.
+
+  ## Type
+  SOP
+
+  ## Risk
+  Small
+
+  ## Requirements
+  * Available ASG
+
+  ## Permission required for AutomationAssumeRole
+  * autoscaling:UpdateAutoScalingGroup
+  * autoscaling:DescribeAutoScalingGroups
+  * autoscaling:StartInstanceRefresh
+  * autoscaling:DescribeInstanceRefreshes
+  * ec2:DescribeLaunchTemplateVersions
+  * ec2:DescribeInstanceTypeOfferings
+  * ec2:CreateLaunchTemplateVersion
+  * ec2:DeleteLaunchTemplateVersions
+  * ec2:RunInstances
+  * iam:PassRole
+
+  ## Supports Rollback
+  Yes
+
+  ## Inputs
+  ### AutoScalingGroupName:
+  * type: String
+  * description: (Required) The Name of the Amazon EC2 Auto Scaling group to scale-down
+  ### AutomationAssumeRole:
+  * type: String
+  * description:
+      (Optional) The ARN of the role that allows Automation to perform
+      the actions on your behalf. If no role is specified, Systems Manager Automation
+      uses your IAM permissions to run this document.
+      default: ''
+
+  ## Details
+  The document fetches the original instance type, calculates the next smaller instance type based on it,
+  downgrades the instance type based on the calculated one, refreshes the ASG's instances and waits for the refresh to complete.
+
+  ## Steps executed in normal flow
+    * RecordStartTime
+    * CurrentSetup
+    * DowngradeInstanceType
+    * RefreshInstances
+    * WaitForRefresh
+    * OutputRecoveryTime
+
+  ## Outputs
+  * `OutputRecoveryTime.RecoveryTime`: recovery time in seconds
+schemaVersion: "0.3"
+assumeRole: "{{ AutomationAssumeRole }}"
+outputs:
+  - OutputRecoveryTime.RecoveryTime
+parameters:
+  AutoScalingGroupName:
+    type: String
+    description: (Required) The Name of the ASG to scale-down
+    allowedPattern: "^[\x21-\x39\x3B-\x7E]+$"
+  Dryrun:
+    type: Boolean
+    default: true
+    description: "(Optional) Dryrun indicates a testing run, changes will be rolled back."
+    allowedPattern: "^(true|false)$"
+  AutomationAssumeRole:
+    type: String
+    description: (Required) The ARN of the role that allows Automation to perform the actions on your behalf.
+    allowedPattern: "^arn:(aws|aws-cn|aws-us-gov|aws-iso|aws-iso-b):[a-zA-Z0-9-]+:[a-zA-Z0-9-]*:[0-9]{12}:[^\n\r]*$"
+mainSteps:
+  - name: RecordStartTime
+    description: Start recording execution time
+    action: "aws:executeScript"
+    inputs:
+      Runtime: python3.11
+      Handler: script_handler
+      Script: |-
+        def script_handler(events, context):
+          from datetime import datetime, timezone
+          return datetime.now(timezone.utc).isoformat()
+    outputs:
+      - Name: StartTime
+        Selector: $.Payload
+        Type: String
+  - name: CurrentSetup
+    action: "aws:executeScript"
+    outputs:
+      - Name: OriginalInstanceType
+        Selector: $.Payload.OriginalInstanceType
+        Type: String
+      - Name: LaunchTemplateVersion
+        Selector: $.Payload.LaunchTemplateVersion
+        Type: String
+      - Name: LaunchTemplateName
+        Selector: $.Payload.LaunchTemplateName
+        Type: String
+      - Name: SmallerInstanceType
+        Selector: $.Payload.SmallerInstanceType
+        Type: String
+    inputs:
+      Runtime: python3.11
+      Handler: get_instance_data
+      Script: |
+        import logging
+        import boto3
+
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+
+
+        def get_instance_data(events, context):
+            asg = boto3.client('autoscaling')
+            ec2 = boto3.client('ec2')
+            describe_asg = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[events['AutoScalingGroupName']])
+            if 'MixedInstancesPolicy' in describe_asg['AutoScalingGroups'][0]:
+                raise Exception('Cannot run this SOP on ASG that has a MixedInstancesPolicy')
+            current_state = get_current_state(ec2, describe_asg)
+            smaller_instance_type = get_smaller_instance(current_state['OriginalInstanceType'], ec2)
+            return {**current_state, **{'SmallerInstanceType': smaller_instance_type}}
+
+
+        def get_current_state(ec2, describe_asg):
+            if 'LaunchTemplate' in describe_asg['AutoScalingGroups'][0]:
+                launch_template_version = describe_asg['AutoScalingGroups'][0]['LaunchTemplate']['Version']
+                launch_template_name = describe_asg['AutoScalingGroups'][0]['LaunchTemplate']['LaunchTemplateName']
+                describe_template = ec2.describe_launch_template_versions(
+                    LaunchTemplateName=launch_template_name, Versions=[launch_template_version])
+                current_instance_type = describe_template['LaunchTemplateVersions'][0]['LaunchTemplateData']['InstanceType']
+                return {'OriginalInstanceType': current_instance_type, 'LaunchTemplateVersion': launch_template_version,
+                        'LaunchTemplateName': launch_template_name, 'LaunchConfigurationName': ''}
+            else:
+                raise Exception('This SOP requires the Auto Scaling group to have a Launch Template.')
+
+
+        def get_smaller_instance(current_instance_type, ec2):
+            instance_type_size = current_instance_type.rsplit(".", 1)
+            instance_sizes = ["nano", "micro", "small", "medium", "large", "xlarge", "2xlarge", "3xlarge", "4xlarge",
+                              "6xlarge", "8xlarge", "9xlarge", "10xlarge", "12xlarge", "16xlarge", "18xlarge", "24xlarge",
+                              "32xlarge", "56xlarge", "112xlarge"]
+            current_idx = instance_sizes.index(instance_type_size[1])
+            if current_idx == 0:
+                raise Exception("Already at the smallest instance size (" + current_instance_type + "). Cannot scale down further.")
+            smaller_size_end_idx = current_idx
+            possible_instance_types = []
+            for i in range(smaller_size_end_idx - 1, -1, -1):
+                possible_instance_types.append(instance_type_size[0] + "." + instance_sizes[i])
+            instance_types_response = ec2.describe_instance_type_offerings(
+                Filters=[{'Name': 'instance-type', "Values": [instance_type_size[0] + ".*"]}])
+            all_instance_types = [offering['InstanceType'] for offering in instance_types_response['InstanceTypeOfferings']]
+            smaller_instances = [candidate for candidate in possible_instance_types if candidate in all_instance_types]
+            if smaller_instances:
+                return smaller_instances[0]
+            else:
+                raise Exception("Could not identify smaller instance type than current instance type: " + current_instance_type)
+
+      InputPayload:
+        AutoScalingGroupName: "{{AutoScalingGroupName}}"
+    description: Record current set up and gather the smaller instance to which we will downgrade the ASG.
+  - name: DowngradeInstanceType
+    action: "aws:executeScript"
+    inputs:
+      Runtime: python3.11
+      Handler: update_asg
+      Script: |-
+        import logging
+        import boto3
+
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+
+
+        def update_asg(events, context):
+            asg = boto3.client('autoscaling')
+            ec2 = boto3.client('ec2')
+            new_instance_type = events['SmallerInstanceType']
+            if events['LaunchTemplateName']:
+                create_template_response = ec2.create_launch_template_version(
+                    LaunchTemplateName=events['LaunchTemplateName'],
+                    SourceVersion=events['LaunchTemplateVersion'],
+                    LaunchTemplateData={'InstanceType': new_instance_type},
+                    VersionDescription="Uses instance type " + new_instance_type)
+                new_version = str(create_template_response['LaunchTemplateVersion']['VersionNumber'])
+                asg.update_auto_scaling_group(AutoScalingGroupName=events['AutoScalingGroupName'],
+                                              LaunchTemplate={'LaunchTemplateName': events['LaunchTemplateName'],
+                                                              'Version': new_version})
+                return {'LaunchTemplate': events['LaunchTemplateName'] + ':' + new_version}
+            else:
+                raise Exception('This SOP requires the Auto Scaling group to have a Launch Template.')
+
+      InputPayload:
+        AutoScalingGroupName: "{{ AutoScalingGroupName }}"
+        LaunchTemplateName: "{{ CurrentSetup.LaunchTemplateName }}"
+        LaunchTemplateVersion: "{{ CurrentSetup.LaunchTemplateVersion }}"
+        SmallerInstanceType: "{{ CurrentSetup.SmallerInstanceType }}"
+    outputs:
+      - Selector: $.Payload.LaunchTemplate
+        Name: LaunchTemplate
+        Type: String
+    description: "Downgrade ASG to use the smaller instance type. This will update the Launch Template."
+  - name: RefreshInstances
+    action: "aws:executeAwsApi"
+    inputs:
+      Service: autoscaling
+      Api: StartInstanceRefresh
+      AutoScalingGroupName: "{{AutoScalingGroupName}}"
+    outputs:
+      - Selector: $.InstanceRefreshId
+        Name: InstanceRefreshId
+        Type: String
+    description: Refresh instances to downgrade to new instance type
+  - name: WaitForRefresh
+    action: "aws:waitForAwsResourceProperty"
+    inputs:
+      Service: autoscaling
+      Api: DescribeInstanceRefreshes
+      PropertySelector: "$.InstanceRefreshes[0].Status"
+      DesiredValues:
+        - Successful
+      AutoScalingGroupName: "{{AutoScalingGroupName}}"
+      InstanceRefreshIds:
+        - "{{RefreshInstances.InstanceRefreshId}}"
+    description: Wait for RefreshInstances to complete
+  - name: OutputRecoveryTime
+    description: Calculate execution time
+    action: "aws:executeScript"
+    inputs:
+      Runtime: python3.11
+      Handler: script_handler
+      Script: |-
+        def script_handler(events, context):
+          from datetime import datetime, timezone
+          from dateutil import parser
+          return (datetime.now(timezone.utc) - parser.parse(events['StartTime'])).seconds
+      InputPayload:
+        StartTime: "{{RecordStartTime.StartTime}}"
+    outputs:
+      - Name: RecoveryTime
+        Selector: $.Payload
+        Type: Integer
+  - name: DryrunBranch
+    action: "aws:branch"
+    inputs:
+      Choices:
+        - NextStep: EmptyStepForEnd
+          Variable: "{{Dryrun}}"
+          BooleanEquals: false
+        - NextStep: RollBackScaleDownChange
+          Variable: "{{Dryrun}}"
+          BooleanEquals: true
+    description: "If this is NOT a dryrun, skip to the end. If it is a dryrun, proceed to rollback."
+  - name: RollBackScaleDownChange
+    action: "aws:executeScript"
+    inputs:
+      Runtime: python3.11
+      Handler: rollback_scaledown
+      Script: |
+        import logging
+        import boto3
+
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+
+
+        def rollback_scaledown(events, context):
+            asg = boto3.client('autoscaling')
+            ec2 = boto3.client('ec2')
+            if events['LaunchTemplateName']:
+                name_version = events['LaunchTemplate'].rsplit(":", 1)
+                asg.update_auto_scaling_group(AutoScalingGroupName=events['AutoScalingGroupName'],
+                                              LaunchTemplate={'LaunchTemplateName': events['LaunchTemplateName'],
+                                                              'Version': events['LaunchTemplateVersion']})
+                ec2.delete_launch_template_versions(LaunchTemplateName=name_version[0], Versions=[name_version[1]])
+            else:
+                raise Exception('This SOP requires the Auto Scaling group to have a Launch Template.')
+
+      InputPayload:
+        AutoScalingGroupName: "{{ AutoScalingGroupName }}"
+        LaunchTemplateName: "{{ CurrentSetup.LaunchTemplateName }}"
+        LaunchTemplateVersion: "{{ CurrentSetup.LaunchTemplateVersion }}"
+        LaunchTemplate: "{{ DowngradeInstanceType.LaunchTemplate }}"
+    description: Rollback by updating the ASG to use the previous Launch Template
+  - name: RefreshInstancesRollback
+    action: "aws:executeAwsApi"
+    inputs:
+      Service: autoscaling
+      Api: StartInstanceRefresh
+      AutoScalingGroupName: "{{AutoScalingGroupName}}"
+    outputs:
+      - Name: RollbackInstanceRefreshId
+        Selector: $.InstanceRefreshId
+        Type: String
+    description: Refresh instances to previous version (perform rollback)
+  - name: WaitForRollback
+    action: "aws:waitForAwsResourceProperty"
+    inputs:
+      Service: autoscaling
+      Api: DescribeInstanceRefreshes
+      PropertySelector: "$.InstanceRefreshes[0].Status"
+      DesiredValues:
+        - Successful
+      AutoScalingGroupName: "{{AutoScalingGroupName}}"
+      InstanceRefreshIds:
+        - "{{RefreshInstancesRollback.RollbackInstanceRefreshId}}"
+    description: Wait for rollback to complete
+  - name: EmptyStepForEnd
+    action: "aws:sleep"
+    inputs:
+      Duration: PT1S
+    description: End
