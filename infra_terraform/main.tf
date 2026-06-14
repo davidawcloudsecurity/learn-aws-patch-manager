@@ -1,4 +1,4 @@
-provider "aws" {
+﻿provider "aws" {
   region = var.region
 }
 
@@ -51,7 +51,7 @@ resource "aws_subnet" "private" {
   tags = { Name = "${var.project_tag}-private-${var.azs[count.index]}" }
 }
 
-# NAT Gateway ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ASG instances in private subnets need outbound for patching
+# NAT Gateway ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ASG instances in private subnets need outbound for patching
 resource "aws_eip" "nat" {
   count  = var.create_vpc ? 1 : 0
   domain = "vpc"
@@ -129,7 +129,7 @@ resource "aws_vpc_dhcp_options_association" "ad_dns" {
 }
 
 # ============================================================
-# IAM Role ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â EC2 instances need SSM + Directory Service access
+# IAM Role ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â EC2 instances need SSM + Directory Service access
 # ============================================================
 
 resource "aws_iam_role" "ec2_ssm_ad" {
@@ -163,7 +163,7 @@ resource "aws_iam_instance_profile" "ec2_ssm_ad" {
 }
 
 # ============================================================
-# SSM Document + Association ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Auto AD Domain Join
+# SSM Document + Association ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Auto AD Domain Join
 # ============================================================
 
 resource "aws_ssm_document" "ad_join" {
@@ -200,7 +200,7 @@ resource "aws_ssm_association" "ad_join" {
 }
 
 # ============================================================
-# Security Group ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Windows ASG (AD + SSM + Patching)
+# Security Group ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Windows ASG (AD + SSM + Patching)
 # ============================================================
 
 resource "aws_security_group" "windows_asg" {
@@ -713,7 +713,7 @@ data "aws_ami" "ubuntu_2204" {
 }
 
 # ============================================================
-# Security Group ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Linux Ubuntu Standalone
+# Security Group ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Linux Ubuntu Standalone
 # ============================================================
 
 resource "aws_security_group" "linux_ubuntu" {
@@ -751,7 +751,7 @@ resource "aws_security_group" "linux_ubuntu" {
 }
 
 # ============================================================
-# IAM Role ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Lambda for ASG State Change (pre-created to avoid
+# IAM Role ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Lambda for ASG State Change (pre-created to avoid
 # permissions boundary issues with ams_ssm_automation_role)
 # ============================================================
 
@@ -802,7 +802,7 @@ resource "aws_iam_role_policy" "lambda_asg_access" {
 }
 
 # ============================================================
-# IAM Role ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Linux EC2 (SSM only, no AD)
+# IAM Role ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Linux EC2 (SSM only, no AD)
 # ============================================================
 
 resource "aws_iam_role" "ec2_ssm_linux" {
@@ -894,7 +894,7 @@ resource "aws_ssm_patch_group" "ubuntu" {
 }
 
 # ============================================================
-# SSM Maintenance Window Target ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Linux
+# SSM Maintenance Window Target ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Linux
 # ============================================================
 
 resource "aws_ssm_maintenance_window_target" "patch_linux" {
@@ -1033,6 +1033,52 @@ resource "aws_ssm_maintenance_window_task" "patch" {
 }
 
 # ============================================================
+# ============================================================
+# Cookie-Token Auth — Parameter Store + IAM (conditional)
+# ============================================================
+
+resource "aws_ssm_parameter" "jwt_signing_key" {
+  count       = var.use_cookie_auth ? 1 : 0
+  name        = "/${var.project_tag}/jwt-signing-key"
+  description = "HMAC signing key for cookie-based token auth"
+  type        = "SecureString"
+  value       = "ChangeMe-Use-A-Strong-Random-Key-Here-32chars!"
+
+  tags = { Name = "${var.project_tag}-jwt-signing-key" }
+}
+
+# Allow EC2 instances to read the signing key
+resource "aws_iam_role_policy" "ssm_read_jwt_key" {
+  count = var.use_cookie_auth ? 1 : 0
+  name  = "ssm-read-jwt-signing-key"
+  role  = aws_iam_role.ec2_ssm_ad.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = aws_ssm_parameter.jwt_signing_key[0].arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "ssm.${var.region}.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # Outputs
 # ============================================================
 

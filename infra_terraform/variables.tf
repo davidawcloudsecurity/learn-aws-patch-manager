@@ -151,3 +151,13 @@ variable "patch_window_cutoff" {
   type        = number
   default     = 1
 }
+
+# ============================================================
+# Session Mode Toggle
+# ============================================================
+
+variable "use_cookie_auth" {
+  description = "Use cookie-based token auth (survives instance refresh) instead of InProc sessions"
+  type        = bool
+  default     = false
+}
