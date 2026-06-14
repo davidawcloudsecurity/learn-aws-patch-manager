@@ -398,6 +398,7 @@ protected string GetInstanceId()
   </style>
 </head>
 <body>
+  <div style="background:#222;color:#fff;padding:10px;text-align:center;position:fixed;top:0;left:0;width:100%;z-index:999;font-size:0.85em;">Running on: <% Response.Write(Environment.MachineName); %></div>
   <div class="card">
     <div class="header">
       <h1>ASG Instance Dashboard</h1>
