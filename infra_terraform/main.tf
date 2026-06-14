@@ -377,21 +377,24 @@ protected string GetInstanceId()
 
 protected void Page_Load(object sender, EventArgs e)
 {
+    // Handle login
     if (Request.Form["action"] == "login")
     {
         Session["user"] = Request.Form["username"];
         Session["loginTime"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
         Session["loginHost"] = Environment.MachineName;
         Session["count"] = 0;
-        // Remove the Redirect — just let the page render
-        return;
+        Response.Redirect(Request.Url.AbsolutePath, false);
+        Context.ApplicationInstance.CompleteRequest(); return;
     }
+    // Handle logout
     if (Request.Form["action"] == "logout")
     {
         Session.Abandon();
-        // Remove the Redirect — just let the page render
-        return;
+        Response.Redirect(Request.Url.AbsolutePath, false);
+        Context.ApplicationInstance.CompleteRequest(); return;
     }
+    // Increment counter if logged in
     if (Session["user"] != null)
     {
         Session["count"] = (int)Session["count"] + 1;
