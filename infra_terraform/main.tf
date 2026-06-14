@@ -163,6 +163,33 @@ resource "aws_iam_instance_profile" "ec2_ssm_ad" {
 }
 
 # ============================================================
+# SSM Parameter Store - JWT Signing Key (cookie-auth mode)
+# ============================================================
+
+resource "aws_ssm_parameter" "jwt_signing_key" {
+  count = var.use_cookie_auth ? 1 : 0
+  name  = "/${var.project_tag}/jwt-signing-key"
+  type  = "SecureString"
+  value = var.jwt_signing_key
+  tags  = { Name = "${var.project_tag}-jwt-signing-key" }
+}
+
+resource "aws_iam_role_policy" "ssm_get_parameter" {
+  count = var.use_cookie_auth ? 1 : 0
+  name  = "ssm-get-jwt-key"
+  role  = aws_iam_role.ec2_ssm_ad.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ssm:GetParameter"]
+      Resource = aws_ssm_parameter.jwt_signing_key[0].arn
+    }]
+  })
+}
+
+# ============================================================
 # SSM Document + Association ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Auto AD Domain Join
 # ============================================================
 

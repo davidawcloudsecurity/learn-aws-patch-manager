@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # General
 # ============================================================
 
@@ -160,4 +160,11 @@ variable "use_cookie_auth" {
   description = "Use cookie-based token auth (survives instance refresh) instead of InProc sessions"
   type        = bool
   default     = false
+}
+
+variable "jwt_signing_key" {
+  description = "HMAC signing key for cookie-based auth (set via TF_VAR_jwt_signing_key)"
+  type        = string
+  sensitive   = true
+  default     = "ChangeMe-Demo-SigningKey-2026!"
 }
