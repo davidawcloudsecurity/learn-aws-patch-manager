@@ -1,4 +1,4 @@
-﻿provider "aws" {
+provider "aws" {
   region = var.region
 }
 
@@ -384,15 +384,15 @@ protected void Page_Load(object sender, EventArgs e)
         Session["loginTime"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
         Session["loginHost"] = Environment.MachineName;
         Session["count"] = 0;
-        Response.Redirect(Request.Url.AbsolutePath);
-        return;
+        Response.Redirect(Request.Url.AbsolutePath, false);
+        Context.ApplicationInstance.CompleteRequest(); return;
     }
     // Handle logout
     if (Request.Form["action"] == "logout")
     {
         Session.Abandon();
-        Response.Redirect(Request.Url.AbsolutePath);
-        return;
+        Response.Redirect(Request.Url.AbsolutePath, false);
+        Context.ApplicationInstance.CompleteRequest(); return;
     }
     // Increment counter if logged in
     if (Session["user"] != null)
