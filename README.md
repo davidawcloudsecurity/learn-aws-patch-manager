@@ -38,9 +38,25 @@ repoquery --upgrades --qf '%{name}-%{version}-%{release}.%{arch} %{buildtime}' |
 OR
 dnf update --advisory=$(dnf updateinfo list available -v  | grep 'A-' | grep -v '2026-' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y; needs-restarting -r || reboot now # latest version
 dnf upgrade-minimal --advisory=$(dnf updateinfo list available -v  | grep 'A-' | grep -v '2026-02' | cut -d' ' -f1 | sort -u | tr '\n' ',') -y; needs-restarting -r || reboot now # last version
-RHBA-2026:0859 bugfix cloud-init-23.4-7.el8_10.11.noarch 2026-01-20 22:20:56
+(e.g) RHBA-2026:0859 bugfix cloud-init-23.4-7.el8_10.11.noarch 2026-01-20 22:20:56
+| Step | What it does |
+|---|---|
+| dnf updateinfo list available -v | Lists all available security/bugfix/enhancement advisories |
+| grep 'A-' | Filters only advisory IDs (lines starting with A-, e.g. RHSA-2026:1234) |
+| grep -v '2026-02' | Excludes February 2026 advisories |
+| cut -d' ' -f1 | Takes just the advisory ID (first column) |
+| sort -u | Removes duplicates |
+| tr '\n' ',' | Joins them into a comma-separated list e.g. RHSA-2026:0001,RHSA-2026:0002,... |
 ```
+```
+Change the grep -v '2026-02' to grep out all dates from July 14 onwards:
+dnf upgrade-minimal --advisory=$(dnf updateinfo list available -v | grep 'A-' | grep -v '2026-07-1[4-9]\|2026-07-2[0-9]\|2026-07-3[0-1]' | cut -d' ' -f1 | sort -u | tr '\n' ',')
 
+The key part: grep -v '2026-07-1[4-9]\|2026-07-2[0-9]\|2026-07-3[0-1]' excludes July 14–31.
+
+Or simpler — just exclude anything after July 13 using a date cutoff:
+dnf upgrade-minimal --advisory=$(dnf updateinfo list available -v | grep 'A-' | awk '$NF <= "2026-07-13"' | cut -d' ' -f1 | sort -u | tr '\n' ',')
+```
 ### How to pull missing KBs for windows in patch manager
 ```
 for instance in "i-0dd2fd13e02ac642f" "i-0b0670e86c8212ee1"; do echo "Instance: $instance"; aws ssm describe-instance-patches --instance-id "$instance" --filters Key=State,Values=Missing Key=Severity,Values=Critical,Important --region us-east-1 --query 'Patches[*].KBId' --output json; echo "---"; done
