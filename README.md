@@ -354,7 +354,7 @@ if ($cbsPending -and $wuPending) {
 ```
 # Last 50 Windows Update related events
 ```
-get-winevent -logname System| Where-Object {$_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"} | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
+Get-WinEvent -LogName System | Where-Object {$_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"} | Select-Object -First 5 | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
 ```
 
 ### Here are three one-liners for **Security Updates Only**:
