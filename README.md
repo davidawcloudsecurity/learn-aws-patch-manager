@@ -385,6 +385,9 @@ $job = Start-Job -Name "WUInstall-$KB" -ArgumentList $KB -ScriptBlock {
         HResult        = '0x{0:X}' -f $r.HResult
     }
 }
+
+Get-Job "WUInstall-$KB"
+Receive-Job "WUInstall-$KB" -Wait -AutoRemoveJob
 ```
 # Last 50 Windows Update related events
 ```
