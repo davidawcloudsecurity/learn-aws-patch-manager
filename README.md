@@ -352,6 +352,35 @@ if ($cbsPending -and $wuPending) {
     Write-Output "Not all conditions met — skipping restart."
 }
 ```
+### How to scan, install as a background job
+```
+$job = Start-Job -Name WUInstall -ScriptBlock {
+    $session  = New-Object -ComObject Microsoft.Update.Session
+    $searcher = $session.CreateUpdateSearcher()
+    $found    = $searcher.Search("IsInstalled=0").Updates | Where-Object { $_.Title -match "KB5091573" }
+
+    if (-not $found) { return "KB5091573 not found"; }
+
+    $coll = New-Object -ComObject Microsoft.Update.UpdateColl
+    $found | ForEach-Object { [void]$coll.Add($_) }
+
+    $dl = $session.CreateUpdateDownloader()
+    $dl.Updates = $coll
+    $dlResult = $dl.Download()
+
+    $inst = $session.CreateUpdateInstaller()
+    $inst.Updates = $coll
+    $r = $inst.Install()
+
+    [pscustomobject]@{
+        Updates        = $coll.Count
+        DownloadResult = $dlResult.ResultCode
+        InstallResult  = $r.ResultCode      # 2 = Succeeded, 3 = Succeeded with errors, 4 = Failed
+        RebootRequired = $r.RebootRequired
+        HResult        = '0x{0:X}' -f $r.HResult
+    }
+}
+```
 # Last 50 Windows Update related events
 ```
 Get-WinEvent -LogName System | Where-Object {$_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"} | Select-Object -First 5 | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
