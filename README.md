@@ -408,6 +408,8 @@ Receive-Job "WUInstall-$KB" -Wait -AutoRemoveJob
 # Last 50 Windows Update related events
 ```
 Get-WinEvent -LogName System | Where-Object {$_.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient"} | Select-Object -First 5 | Format-Table TimeCreated, Id, LevelDisplayName, Message -Wrap
+or to see downloads
+Get-WinEvent -LogName Microsoft-Windows-WindowsUpdateClient/Operational -MaxEvents 20 | Select TimeCreated, Id, Message | Format-List
 ```
 
 ### Here are three one-liners for **Security Updates Only**:
