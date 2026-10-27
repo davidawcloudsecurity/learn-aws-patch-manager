@@ -1,5 +1,7 @@
 ### Powershell commands to see sequence from download and install
 ```
+get-winevent -providername Microsoft-Windows-WindowsUpdateClient -maxevent 5
+or 
 $logs = 'System', 'Microsoft-Windows-WindowsUpdateClient/Operational'
 
 $events = foreach ($log in $logs) {
