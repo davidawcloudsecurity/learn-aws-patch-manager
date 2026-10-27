@@ -333,6 +333,22 @@ https://rdr-it.com/en/wsus-manually-import-an-update-from-the-microsoft-update-c
 ```
 https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbols-windows-update
 ```
+### How to scan, download and install KBs using WUA API
+```
+$KBs = "KB5091573","KB5128923"   # one or many
+
+$s = New-Object -ComObject Microsoft.Update.Session
+$ids = $KBs -replace '^KB',''
+$S = $s.CreateUpdateSearcher().Search("IsInstalled=0").Updates | ? { $_.KBArticleIDs | ? { $_ -in $ids } }
+if ($S) {
+    $C = New-Object -ComObject Microsoft.Update.UpdateColl
+    $S | % { [void]$C.Add($_) }
+    $D = $s.CreateUpdateDownloader(); $D.Updates = $C; $dl = $D.Download()
+    $I = $s.CreateUpdateInstaller(); $I.Updates = $C; $R = $I.Install()
+    Write-Host "Updates: $($C.Count), Download: $($dl.ResultCode), Install: $($R.ResultCode), Reboot: $($R.RebootRequired), HResult: 0x$('{0:X}' -f $R.HResult)"
+} else { Write-Host "None of $($KBs -join ', ') found" }
+
+```
 ### How to scan, download and install KB using WUA API
 Scan for general updates
 ```
