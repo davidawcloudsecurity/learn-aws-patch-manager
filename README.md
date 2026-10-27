@@ -354,12 +354,16 @@ if ($cbsPending -and $wuPending) {
 ```
 ### How to scan, install as a background job
 ```
-$job = Start-Job -Name WUInstall -ScriptBlock {
+$KB = "KB5091573"
+
+$job = Start-Job -Name "WUInstall-$KB" -ArgumentList $KB -ScriptBlock {
+    param($KB)
+
     $session  = New-Object -ComObject Microsoft.Update.Session
     $searcher = $session.CreateUpdateSearcher()
-    $found    = $searcher.Search("IsInstalled=0").Updates | Where-Object { $_.Title -match "KB5091573" }
+    $found    = $searcher.Search("IsInstalled=0").Updates | Where-Object { $_.Title -match $KB }
 
-    if (-not $found) { return "KB5091573 not found"; }
+    if (-not $found) { return "$KB not found" }
 
     $coll = New-Object -ComObject Microsoft.Update.UpdateColl
     $found | ForEach-Object { [void]$coll.Add($_) }
@@ -373,6 +377,7 @@ $job = Start-Job -Name WUInstall -ScriptBlock {
     $r = $inst.Install()
 
     [pscustomobject]@{
+        KB             = $KB
         Updates        = $coll.Count
         DownloadResult = $dlResult.ResultCode
         InstallResult  = $r.ResultCode      # 2 = Succeeded, 3 = Succeeded with errors, 4 = Failed
