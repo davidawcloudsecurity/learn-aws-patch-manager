@@ -1,3 +1,19 @@
+### Powershell commands to see sequence from download and install
+```
+$logs = 'System', 'Microsoft-Windows-WindowsUpdateClient/Operational'
+
+$events = foreach ($log in $logs) {
+    Get-WinEvent -FilterHashtable @{ LogName = $log; ProviderName = 'Microsoft-Windows-WindowsUpdateClient'; StartTime = (Get-Date).AddHours(-3) } -ErrorAction SilentlyContinue |
+        Select-Object TimeCreated, Id, LevelDisplayName, @{n='Log';e={$log}}, Message
+}
+
+$events | Sort-Object TimeCreated | Format-Table TimeCreated, Id, Log, Message -Wrap
+or
+$events | Sort-Object TimeCreated |
+    Select-Object @{n='Time';e={$_.TimeCreated.ToString('yyyy-MM-dd HH:mm:ss')}}, Id, Log, @{n='Message';e={($_.Message -split "`r?`n")[0]}} |
+    Format-Table -AutoSize -Wrap
+```
+
 ### Powershell commands to identify command line
 ```
 # First layer. If nothing shows. Use the second
